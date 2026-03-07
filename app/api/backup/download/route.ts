@@ -1,7 +1,7 @@
-import fs from "fs";
-import path from "path";
+import { get } from "@vercel/blob";
 import { NextRequest } from "next/server";
 import { isRequestAuthorized } from "@/lib/auth";
+import { assertBlobConfig, sanitizeBackupFilename, toBackupBlobPath } from "@/lib/blob-backups";
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,19 +16,20 @@ export async function GET(req: NextRequest) {
       return new Response("Missing filename", { status: 400 });
     }
 
-    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const filePath = path.join(process.cwd(), "backups", safeName);
+    assertBlobConfig();
+    const safeName = sanitizeBackupFilename(filename);
+    const blob = await get(toBackupBlobPath(safeName), {
+      access: "private",
+    });
 
-    if (!fs.existsSync(filePath)) {
+    if (!blob || blob.statusCode !== 200 || !blob.stream) {
       return new Response("Backup not found", { status: 404 });
     }
 
-    const buffer = fs.readFileSync(filePath);
-
-    return new Response(buffer, {
+    return new Response(blob.stream, {
       status: 200,
       headers: {
-        "content-type": "application/octet-stream",
+        "content-type": blob.blob.contentType || "application/octet-stream",
         "content-disposition": `attachment; filename="${safeName}"`,
       },
     });

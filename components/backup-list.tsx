@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Download, History, Loader2, ChevronLeft, ChevronRight, Lock } from "lucide-react";
+import { Download, History, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface BackupFile {
   name: string;

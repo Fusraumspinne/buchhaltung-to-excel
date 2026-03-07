@@ -1,7 +1,7 @@
-import fs from "fs";
-import path from "path";
+import { put } from "@vercel/blob";
 import { NextRequest } from "next/server";
 import { isRequestAuthorized } from "@/lib/auth";
+import { assertBlobConfig, sanitizeBackupFilename, toBackupBlobPath } from "@/lib/blob-backups";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,18 +14,18 @@ export async function POST(req: NextRequest) {
 
     const url = new URL(req.url);
     const filenameParam = url.searchParams.get("filename") || `backup_${Date.now()}.xlsx`;
-    const safeName = filenameParam.replace(/[^a-zA-Z0-9._-]/g, "_");
-
-    const backupsDir = path.join(process.cwd(), "backups");
-    await fs.promises.mkdir(backupsDir, { recursive: true });
+    const safeName = sanitizeBackupFilename(filenameParam);
+    assertBlobConfig();
 
     const arrayBuffer = await req.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const blob = await put(toBackupBlobPath(safeName), arrayBuffer, {
+      access: "private",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
 
-    const filePath = path.join(backupsDir, safeName);
-    await fs.promises.writeFile(filePath, buffer);
-
-    return new Response(JSON.stringify({ ok: true, path: `/backups/${safeName}` }), {
+    return new Response(JSON.stringify({ ok: true, path: blob.pathname }), {
       status: 200,
       headers: { "content-type": "application/json" },
     });

@@ -1,7 +1,7 @@
-import fs from "fs";
-import path from "path";
+import { list } from "@vercel/blob";
 import { NextRequest } from "next/server";
 import { isRequestAuthorized } from "@/lib/auth";
+import { assertBlobConfig, BACKUP_BLOB_PREFIX, fromBackupBlobPath } from "@/lib/blob-backups";
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,25 +16,70 @@ export async function GET(req: NextRequest) {
 
     const limit = parseInt(url.searchParams.get("limit") || "5");
     const offset = parseInt(url.searchParams.get("offset") || "0");
+    assertBlobConfig();
 
-    const backupsDir = path.join(process.cwd(), "backups");
-    if (!fs.existsSync(backupsDir)) {
-      return new Response(JSON.stringify({ backups: [], total: 0 }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
+    const targetCount = offset + limit;
+    let cursor: string | undefined;
+    let hasMore = true;
+    const allBlobs: Array<{
+      pathname: string;
+      uploadedAt: Date;
+      size: number;
+    }> = [];
+
+    while (hasMore) {
+      const result = await list({
+        prefix: BACKUP_BLOB_PREFIX,
+        cursor,
+        limit: 1000,
       });
+
+      hasMore = result.hasMore;
+      cursor = result.cursor;
+
+      for (const blob of result.blobs) {
+        allBlobs.push({
+          pathname: blob.pathname,
+          uploadedAt: blob.uploadedAt,
+          size: blob.size,
+        });
+      }
+
+      if (!hasMore && allBlobs.length === 0) {
+        return new Response(JSON.stringify({ backups: [], total: 0 }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      if (!hasMore || allBlobs.length >= targetCount) {
+        break;
+      }
     }
 
-    const files = fs.readdirSync(backupsDir)
-      .filter(f => f.endsWith(".xlsx"))
-      .map(name => {
-        const stats = fs.statSync(path.join(backupsDir, name));
-        return {
-          name,
-          date: stats.mtime.toISOString(),
-          size: stats.size,
-        };
-      })
+    while (hasMore) {
+      const result = await list({
+        prefix: BACKUP_BLOB_PREFIX,
+        cursor,
+        limit: 1000,
+      });
+      hasMore = result.hasMore;
+      cursor = result.cursor;
+      for (const blob of result.blobs) {
+        allBlobs.push({
+          pathname: blob.pathname,
+          uploadedAt: blob.uploadedAt,
+          size: blob.size,
+        });
+      }
+    }
+
+    const files = allBlobs
+      .map((blob) => ({
+        name: fromBackupBlobPath(blob.pathname),
+        date: blob.uploadedAt.toISOString(),
+        size: blob.size,
+      }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     const paginated = files.slice(offset, offset + limit);
