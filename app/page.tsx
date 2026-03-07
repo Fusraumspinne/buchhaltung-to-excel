@@ -118,7 +118,7 @@ function getHeaderColumnMap(sheet: ExcelJS.Worksheet | undefined) {
     return map;
   }
 
-  sheet.getRow(1).eachCell((cell, colNumber) => {
+  sheet.getRow(2).eachCell((cell, colNumber) => {
     const normalizedHeader = normalizeHeaderLabel(parseCellText(cell.value));
     if (normalizedHeader) {
       map.set(normalizedHeader, colNumber);
@@ -424,11 +424,11 @@ export default function Home() {
       kassenbuchSheet.addRow(row);
     });
     
-    const kbTotalRowNum = kassenbuchRows.length + 2;
+    const kbTotalRowNum = kassenbuchRows.length + 3;
     const kbTotalRow = kassenbuchSheet.addRow({
       id: "GESAMT",
-      einnahmen: { formula: `SUM(D2:D${kbTotalRowNum - 1})` },
-      ausgaben: { formula: `SUM(E2:E${kbTotalRowNum - 1})` },
+      einnahmen: { formula: `SUM(D3:D${kbTotalRowNum - 1})` },
+      ausgaben: { formula: `SUM(E3:E${kbTotalRowNum - 1})` },
       saldo: { formula: `D${kbTotalRowNum}-E${kbTotalRowNum}` },
     });
     kbTotalRow.font = { bold: true };
@@ -446,11 +446,11 @@ export default function Home() {
       darlehenSheet.addRow(row);
     });
     
-    const darlehenTotalRowNum = darlehenRows.length + 2;
+    const darlehenTotalRowNum = darlehenRows.length + 3;
     const darlehenTotalRow = darlehenSheet.addRow({
       id: "GESAMT",
-      anzahl: { formula: `SUM(D2:D${darlehenTotalRowNum - 1})` },
-      preis: { formula: `SUMPRODUCT(D2:D${darlehenTotalRowNum - 1},E2:E${darlehenTotalRowNum - 1})` },
+      anzahl: { formula: `SUM(D3:D${darlehenTotalRowNum - 1})` },
+      preis: { formula: `SUMPRODUCT(D3:D${darlehenTotalRowNum - 1},E3:E${darlehenTotalRowNum - 1})` },
     });
     darlehenTotalRow.font = { bold: true };
 
@@ -467,10 +467,10 @@ export default function Home() {
       ausgabenSheet.addRow(row);
     });
     
-    const ausgabenTotalRowNum = ausgabenRows.length + 2;
+    const ausgabenTotalRowNum = ausgabenRows.length + 3;
     const ausgabenTotalRow = ausgabenSheet.addRow({
       id: "GESAMT",
-      preis: { formula: `SUM(D2:D${ausgabenTotalRowNum - 1})` },
+      preis: { formula: `SUM(D3:D${ausgabenTotalRowNum - 1})` },
     });
     ausgabenTotalRow.font = { bold: true };
 
@@ -487,20 +487,29 @@ export default function Home() {
       verkaufSheet.addRow(row);
     });
     
-    const verkaufTotalRowNum = verkaufRows.length + 2;
+    const verkaufTotalRowNum = verkaufRows.length + 3;
     const verkaufTotalRow = verkaufSheet.addRow({
       id: "GESAMT",
-      preis: { formula: `SUM(D2:D${verkaufTotalRowNum - 1})` },
+      preis: { formula: `SUM(D3:D${verkaufTotalRowNum - 1})` },
     });
     verkaufTotalRow.font = { bold: true };
 
+    const now = new Date();
+    const lastEdited = now.toLocaleDateString("de-DE") + " " + now.toLocaleTimeString("de-DE", { hour: '2-digit', minute: '2-digit' });
+    const metaText = `Buchhaltung von: Riesener Fashion Company - Zuletzt Bearbeitet: ${lastEdited} - Hinweis: Das Bearbeiten der Excel-Datei kann zur Korruption führen und somit nicht mehr importiert werden, einzelne Werte in den Einträgen können ohne Bedenken geändert werden, nur sollten Felder nicht leer bleiben.`;
+
     [kassenbuchSheet, darlehenSheet, ausgabenSheet, verkaufSheet].forEach((sheet) => {
-      sheet.getRow(1).font = { bold: true };
-      
+      sheet.insertRow(1, [metaText]);
+      sheet.mergeCells(1, 1, 1, sheet.columns.length);
+      sheet.getRow(1).alignment = { wrapText: true };
+      sheet.getRow(1).font = { italic: true, size: 10 };
+
+      sheet.getRow(2).font = { bold: true };
+
       sheet.eachRow((row, rowNum) => {
-        if (rowNum === 1) return;
+        if (rowNum <= 2) return;
         row.eachCell((cell, colNum) => {
-          const header = sheet.getRow(1).getCell(colNum).text;
+          const header = sheet.getRow(2).getCell(colNum).text;
           if (["Preis", "Einnahmen", "Ausgaben", "Saldo"].includes(header)) {
             cell.numFmt = "#,##0.00";
           }
@@ -508,7 +517,6 @@ export default function Home() {
       });
     });
 
-    const now = new Date();
     const dateStr = now.toLocaleDateString("de-DE").replace(/\./g, "-");
     const timeStr = now.toLocaleTimeString("de-DE", { hour: '2-digit', minute: '2-digit' }).replace(/:/g, "-");
     const filename = `buchhaltung_${dateStr}_${timeStr}.xlsx`;
@@ -586,7 +594,7 @@ export default function Home() {
     };
 
     darlehenSheet?.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return;
+      if (rowNumber <= 2) return;
       if (isMetaRowLabel(row.getCell(1).value) || isEffectivelyEmpty([row.getCell(1).value, row.getCell(2).value, row.getCell(3).value, row.getCell(4).value, row.getCell(5).value, row.getCell(6).value])) return;
       const entry: DarlehenEntry = {
         id: readOrCreateId(row.getCell(1).value),
@@ -602,7 +610,7 @@ export default function Home() {
     });
 
     ausgabenSheet?.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return;
+      if (rowNumber <= 2) return;
       const ausgabenCellValues = [row.getCell(ausgabenColumns.id).value, ausgabenColumns.datum > 0 ? row.getCell(ausgabenColumns.datum).value : null, row.getCell(ausgabenColumns.ausgabe).value, row.getCell(ausgabenColumns.preis).value, row.getCell(ausgabenColumns.beschreibung).value, row.getCell(ausgabenColumns.geprueftVon).value];
       if (isMetaRowLabel(row.getCell(ausgabenColumns.id).value) || isEffectivelyEmpty(ausgabenCellValues)) return;
       const entry: AusgabenEntry = {
@@ -619,7 +627,7 @@ export default function Home() {
     });
 
     verkaufSheet?.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return;
+      if (rowNumber <= 2) return;
       const verkaufCellValues = [row.getCell(verkaufColumns.id).value, verkaufColumns.datum > 0 ? row.getCell(verkaufColumns.datum).value : null, row.getCell(verkaufColumns.produkt).value, row.getCell(verkaufColumns.preis).value, row.getCell(verkaufColumns.beschreibung).value, row.getCell(verkaufColumns.geprueftVon).value];
       if (isMetaRowLabel(row.getCell(verkaufColumns.id).value) || isEffectivelyEmpty(verkaufCellValues)) return;
       const entry: VerkaufEntry = {
