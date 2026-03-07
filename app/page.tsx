@@ -13,6 +13,7 @@ import { NavigationTabs } from "@/components/navigation-tabs";
 import { Pagination } from "@/components/pagination";
 import { SummaryCards } from "@/components/summary-cards";
 import { VerkaufTable } from "@/components/verkauf-table";
+import { BackupList } from "@/components/backup-list";
 import {
   AusgabenEntry,
   DarlehenEntry,
@@ -514,231 +515,166 @@ export default function Home() {
 
     const buffer = await workbook.xlsx.writeBuffer();
     saveAs(new Blob([buffer]), filename);
+
+    (async () => {
+      try {
+        const resp = await fetch(`/api/backup?filename=${encodeURIComponent(filename)}`, {
+          method: "POST",
+          headers: { "content-type": "application/octet-stream" },
+          body: buffer,
+        });
+        if (!resp.ok) {
+          console.warn("Backup upload failed", await resp.text());
+        }
+      } catch (err) {
+        console.warn("Backup upload error", err);
+      }
+    })();
   };
 
   const findSheet = (workbook: ExcelJS.Workbook, name: string) =>
     workbook.worksheets.find((sheet) => sheet.name.toLowerCase() === name.toLowerCase());
 
+  const processWorkbook = async (workbook: ExcelJS.Workbook) => {
+    const usedIds = new Set<number>();
+    let nextImportedId = 1;
+
+    const readOrCreateId = (value: ExcelJS.CellValue | null | undefined) => {
+      const candidate = Number(parseCellText(value));
+      if (Number.isInteger(candidate) && candidate > 0 && !usedIds.has(candidate)) {
+        usedIds.add(candidate);
+        nextImportedId = Math.max(nextImportedId, candidate + 1);
+        return candidate;
+      }
+      while (usedIds.has(nextImportedId)) {
+        nextImportedId += 1;
+      }
+      const generated = nextImportedId;
+      usedIds.add(generated);
+      nextImportedId += 1;
+      return generated;
+    };
+
+    const importedDarlehen: DarlehenEntry[] = [];
+    const importedAusgaben: AusgabenEntry[] = [];
+    const importedVerkauf: VerkaufEntry[] = [];
+
+    const darlehenSheet = findSheet(workbook, "Darlehen");
+    const ausgabenSheet = findSheet(workbook, "Ausgaben");
+    const verkaufSheet = findSheet(workbook, "Verkauf");
+
+    const ausgabenHeaderMap = getHeaderColumnMap(ausgabenSheet);
+    const ausgabenHasDatum = ausgabenHeaderMap.has(normalizeHeaderLabel("Datum"));
+    const ausgabenColumns = {
+      id: resolveColumnIndex(ausgabenHeaderMap, ["ID"], 1),
+      datum: ausgabenHasDatum ? resolveColumnIndex(ausgabenHeaderMap, ["Datum"], 2) : -1,
+      ausgabe: resolveColumnIndex(ausgabenHeaderMap, ["Ausgabe"], ausgabenHasDatum ? 3 : 2),
+      preis: resolveColumnIndex(ausgabenHeaderMap, ["Preis"], ausgabenHasDatum ? 4 : 3),
+      beschreibung: resolveColumnIndex(ausgabenHeaderMap, ["Beschreibung", "Notiz"], ausgabenHasDatum ? 5 : 4),
+      geprueftVon: resolveColumnIndex(ausgabenHeaderMap, ["Geprueft von", "Gepruft von", "Pruefer", "Prufer"], ausgabenHasDatum ? 6 : 5),
+    };
+
+    const verkaufHeaderMap = getHeaderColumnMap(verkaufSheet);
+    const verkaufHasDatum = verkaufHeaderMap.has(normalizeHeaderLabel("Datum"));
+    const verkaufColumns = {
+      id: resolveColumnIndex(verkaufHeaderMap, ["ID"], 1),
+      datum: verkaufHasDatum ? resolveColumnIndex(verkaufHeaderMap, ["Datum"], 2) : -1,
+      produkt: resolveColumnIndex(verkaufHeaderMap, ["Produkt"], verkaufHasDatum ? 3 : 2),
+      preis: resolveColumnIndex(verkaufHeaderMap, ["Preis"], verkaufHasDatum ? 4 : 3),
+      beschreibung: resolveColumnIndex(verkaufHeaderMap, ["Beschreibung", "Notiz"], verkaufHasDatum ? 5 : 4),
+      geprueftVon: resolveColumnIndex(verkaufHeaderMap, ["Geprueft von", "Gepruft von", "Pruefer", "Prufer"], verkaufHasDatum ? 6 : 5),
+    };
+
+    darlehenSheet?.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      if (isMetaRowLabel(row.getCell(1).value) || isEffectivelyEmpty([row.getCell(1).value, row.getCell(2).value, row.getCell(3).value, row.getCell(4).value, row.getCell(5).value, row.getCell(6).value])) return;
+      const entry: DarlehenEntry = {
+        id: readOrCreateId(row.getCell(1).value),
+        datum: parseCellText(row.getCell(2).value) || today(),
+        name: parseCellText(row.getCell(3).value),
+        anzahl: Math.max(0, Math.floor(parseCellNumber(row.getCell(4).value))),
+        preis: parseCellNumber(row.getCell(5).value),
+        geprueftVon: parseCellText(row.getCell(6).value),
+      };
+      if (entry.name.trim() !== "" || entry.anzahl > 0 || entry.preis !== 0 || entry.geprueftVon.trim() !== "") {
+        importedDarlehen.push(entry);
+      }
+    });
+
+    ausgabenSheet?.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      const ausgabenCellValues = [row.getCell(ausgabenColumns.id).value, ausgabenColumns.datum > 0 ? row.getCell(ausgabenColumns.datum).value : null, row.getCell(ausgabenColumns.ausgabe).value, row.getCell(ausgabenColumns.preis).value, row.getCell(ausgabenColumns.beschreibung).value, row.getCell(ausgabenColumns.geprueftVon).value];
+      if (isMetaRowLabel(row.getCell(ausgabenColumns.id).value) || isEffectivelyEmpty(ausgabenCellValues)) return;
+      const entry: AusgabenEntry = {
+        id: readOrCreateId(row.getCell(ausgabenColumns.id).value),
+        datum: ausgabenColumns.datum > 0 ? parseCellText(row.getCell(ausgabenColumns.datum).value) || today() : today(),
+        ausgabe: parseCellText(row.getCell(ausgabenColumns.ausgabe).value),
+        preis: parseCellNumber(row.getCell(ausgabenColumns.preis).value),
+        beschreibung: parseCellText(row.getCell(ausgabenColumns.beschreibung).value),
+        geprueftVon: parseCellText(row.getCell(ausgabenColumns.geprueftVon).value),
+      };
+      if (entry.ausgabe.trim() !== "" || entry.preis !== 0 || entry.beschreibung.trim() !== "" || entry.geprueftVon.trim() !== "") {
+        importedAusgaben.push(entry);
+      }
+    });
+
+    verkaufSheet?.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      const verkaufCellValues = [row.getCell(verkaufColumns.id).value, verkaufColumns.datum > 0 ? row.getCell(verkaufColumns.datum).value : null, row.getCell(verkaufColumns.produkt).value, row.getCell(verkaufColumns.preis).value, row.getCell(verkaufColumns.beschreibung).value, row.getCell(verkaufColumns.geprueftVon).value];
+      if (isMetaRowLabel(row.getCell(verkaufColumns.id).value) || isEffectivelyEmpty(verkaufCellValues)) return;
+      const entry: VerkaufEntry = {
+        id: readOrCreateId(row.getCell(verkaufColumns.id).value),
+        datum: verkaufColumns.datum > 0 ? parseCellText(row.getCell(verkaufColumns.datum).value) || today() : today(),
+        produkt: parseCellText(row.getCell(verkaufColumns.produkt).value),
+        preis: parseCellNumber(row.getCell(verkaufColumns.preis).value),
+        beschreibung: parseCellText(row.getCell(verkaufColumns.beschreibung).value),
+        geprueftVon: parseCellText(row.getCell(verkaufColumns.geprueftVon).value),
+      };
+      if (entry.produkt.trim() !== "" || entry.preis !== 0 || entry.beschreibung.trim() !== "" || entry.geprueftVon.trim() !== "") {
+        importedVerkauf.push(entry);
+      }
+    });
+
+    setDarlehenRows(importedDarlehen.sort((a, b) => b.id - a.id));
+    setAusgabenRows(importedAusgaben.sort((a, b) => b.id - a.id));
+    setVerkaufRows(importedVerkauf.sort((a, b) => b.id - a.id));
+    setHasInitialized(true);
+    setActiveTab("dashboard");
+  };
+
   const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     try {
       const workbook = new ExcelJS.Workbook();
       const arrayBuffer = await file.arrayBuffer();
       await workbook.xlsx.load(arrayBuffer as ArrayBuffer);
-
-      const usedIds = new Set<number>();
-      let nextImportedId = 1;
-
-      const readOrCreateId = (value: ExcelJS.CellValue | null | undefined) => {
-        const candidate = Number(parseCellText(value));
-        if (Number.isInteger(candidate) && candidate > 0 && !usedIds.has(candidate)) {
-          usedIds.add(candidate);
-          nextImportedId = Math.max(nextImportedId, candidate + 1);
-          return candidate;
-        }
-        while (usedIds.has(nextImportedId)) {
-          nextImportedId += 1;
-        }
-        const generated = nextImportedId;
-        usedIds.add(generated);
-        nextImportedId += 1;
-        return generated;
-      };
-
-      const importedDarlehen: DarlehenEntry[] = [];
-      const importedAusgaben: AusgabenEntry[] = [];
-      const importedVerkauf: VerkaufEntry[] = [];
-
-      const darlehenSheet = findSheet(workbook, "Darlehen");
-      const ausgabenSheet = findSheet(workbook, "Ausgaben");
-      const verkaufSheet = findSheet(workbook, "Verkauf");
-
-      const ausgabenHeaderMap = getHeaderColumnMap(ausgabenSheet);
-      const ausgabenHasDatum = ausgabenHeaderMap.has(normalizeHeaderLabel("Datum"));
-      const ausgabenColumns = {
-        id: resolveColumnIndex(ausgabenHeaderMap, ["ID"], 1),
-        datum: ausgabenHasDatum
-          ? resolveColumnIndex(ausgabenHeaderMap, ["Datum"], 2)
-          : -1,
-        ausgabe: resolveColumnIndex(ausgabenHeaderMap, ["Ausgabe"], ausgabenHasDatum ? 3 : 2),
-        preis: resolveColumnIndex(ausgabenHeaderMap, ["Preis"], ausgabenHasDatum ? 4 : 3),
-        beschreibung: resolveColumnIndex(
-          ausgabenHeaderMap,
-          ["Beschreibung", "Notiz"],
-          ausgabenHasDatum ? 5 : 4,
-        ),
-        geprueftVon: resolveColumnIndex(
-          ausgabenHeaderMap,
-          ["Geprueft von", "Gepruft von", "Pruefer", "Prufer"],
-          ausgabenHasDatum ? 6 : 5,
-        ),
-      };
-
-      const verkaufHeaderMap = getHeaderColumnMap(verkaufSheet);
-      const verkaufHasDatum = verkaufHeaderMap.has(normalizeHeaderLabel("Datum"));
-      const verkaufColumns = {
-        id: resolveColumnIndex(verkaufHeaderMap, ["ID"], 1),
-        datum: verkaufHasDatum
-          ? resolveColumnIndex(verkaufHeaderMap, ["Datum"], 2)
-          : -1,
-        produkt: resolveColumnIndex(verkaufHeaderMap, ["Produkt"], verkaufHasDatum ? 3 : 2),
-        preis: resolveColumnIndex(verkaufHeaderMap, ["Preis"], verkaufHasDatum ? 4 : 3),
-        beschreibung: resolveColumnIndex(
-          verkaufHeaderMap,
-          ["Beschreibung", "Notiz"],
-          verkaufHasDatum ? 5 : 4,
-        ),
-        geprueftVon: resolveColumnIndex(
-          verkaufHeaderMap,
-          ["Geprueft von", "Gepruft von", "Pruefer", "Prufer"],
-          verkaufHasDatum ? 6 : 5,
-        ),
-      };
-
-      darlehenSheet?.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) {
-          return;
-        }
-
-        if (
-          isMetaRowLabel(row.getCell(1).value) ||
-          isEffectivelyEmpty([
-            row.getCell(1).value,
-            row.getCell(2).value,
-            row.getCell(3).value,
-            row.getCell(4).value,
-            row.getCell(5).value,
-            row.getCell(6).value,
-          ])
-        ) {
-          return;
-        }
-
-        const entry: DarlehenEntry = {
-          id: readOrCreateId(row.getCell(1).value),
-          datum: parseCellText(row.getCell(2).value) || today(),
-          name: parseCellText(row.getCell(3).value),
-          anzahl: Math.max(0, Math.floor(parseCellNumber(row.getCell(4).value))),
-          preis: parseCellNumber(row.getCell(5).value),
-          geprueftVon: parseCellText(row.getCell(6).value),
-        };
-
-        const isMeaningful =
-          entry.name.trim() !== "" ||
-          entry.anzahl > 0 ||
-          entry.preis !== 0 ||
-          entry.geprueftVon.trim() !== "";
-
-        if (isMeaningful) {
-          importedDarlehen.push(entry);
-        }
-      });
-
-      ausgabenSheet?.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) {
-          return;
-        }
-
-        const ausgabenCellValues = [
-          row.getCell(ausgabenColumns.id).value,
-          ausgabenColumns.datum > 0 ? row.getCell(ausgabenColumns.datum).value : null,
-          row.getCell(ausgabenColumns.ausgabe).value,
-          row.getCell(ausgabenColumns.preis).value,
-          row.getCell(ausgabenColumns.beschreibung).value,
-          row.getCell(ausgabenColumns.geprueftVon).value,
-        ];
-
-        if (
-          isMetaRowLabel(row.getCell(ausgabenColumns.id).value) ||
-          isEffectivelyEmpty(ausgabenCellValues)
-        ) {
-          return;
-        }
-
-        const entry: AusgabenEntry = {
-          id: readOrCreateId(row.getCell(ausgabenColumns.id).value),
-          datum:
-            ausgabenColumns.datum > 0
-              ? parseCellText(row.getCell(ausgabenColumns.datum).value) || today()
-              : today(),
-          ausgabe: parseCellText(row.getCell(ausgabenColumns.ausgabe).value),
-          preis: parseCellNumber(row.getCell(ausgabenColumns.preis).value),
-          beschreibung: parseCellText(row.getCell(ausgabenColumns.beschreibung).value),
-          geprueftVon: parseCellText(row.getCell(ausgabenColumns.geprueftVon).value),
-        };
-
-        const isMeaningful =
-          entry.ausgabe.trim() !== "" ||
-          entry.preis !== 0 ||
-          entry.beschreibung.trim() !== "" ||
-          entry.geprueftVon.trim() !== "";
-
-        if (isMeaningful) {
-          importedAusgaben.push(entry);
-        }
-      });
-
-      verkaufSheet?.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) {
-          return;
-        }
-
-        const verkaufCellValues = [
-          row.getCell(verkaufColumns.id).value,
-          verkaufColumns.datum > 0 ? row.getCell(verkaufColumns.datum).value : null,
-          row.getCell(verkaufColumns.produkt).value,
-          row.getCell(verkaufColumns.preis).value,
-          row.getCell(verkaufColumns.beschreibung).value,
-          row.getCell(verkaufColumns.geprueftVon).value,
-        ];
-
-        if (
-          isMetaRowLabel(row.getCell(verkaufColumns.id).value) ||
-          isEffectivelyEmpty(verkaufCellValues)
-        ) {
-          return;
-        }
-
-        const entry: VerkaufEntry = {
-          id: readOrCreateId(row.getCell(verkaufColumns.id).value),
-          datum:
-            verkaufColumns.datum > 0
-              ? parseCellText(row.getCell(verkaufColumns.datum).value) || today()
-              : today(),
-          produkt: parseCellText(row.getCell(verkaufColumns.produkt).value),
-          preis: parseCellNumber(row.getCell(verkaufColumns.preis).value),
-          beschreibung: parseCellText(row.getCell(verkaufColumns.beschreibung).value),
-          geprueftVon: parseCellText(row.getCell(verkaufColumns.geprueftVon).value),
-        };
-
-        const isMeaningful =
-          entry.produkt.trim() !== "" ||
-          entry.preis !== 0 ||
-          entry.beschreibung.trim() !== "" ||
-          entry.geprueftVon.trim() !== "";
-
-        if (isMeaningful) {
-          importedVerkauf.push(entry);
-        }
-      });
-
-      setDarlehenRows(importedDarlehen.sort((a, b) => b.id - a.id));
-      setAusgabenRows(importedAusgaben.sort((a, b) => b.id - a.id));
-      setVerkaufRows(importedVerkauf.sort((a, b) => b.id - a.id));
-      
-      // Update hasInitialized to true just in case it wasn't already, 
-      // ensuring the imported data gets saved to localStorage immediately via the effect
-      setHasInitialized(true);
+      await processWorkbook(workbook);
     } catch (error) {
       console.error("Fehler beim Laden:", error);
       showAlert("Fehler beim Import", "Die Excel-Datei konnte nicht gelesen werden. Bitte überprüfe das Format.");
     }
-
     e.target.value = "";
+  };
+
+  const handleRestoreBackup = async (filename: string) => {
+    try {
+      const resp = await fetch(`/api/backup/download?filename=${encodeURIComponent(filename)}`);
+      if (!resp.ok) throw new Error("Download failed");
+      const buffer = await resp.arrayBuffer();
+      
+      // Automatischer Download im Browser
+      saveAs(new Blob([buffer]), filename);
+      
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+      await processWorkbook(workbook);
+      showAlert("Backup geladen", `Das Backup "${filename}" wurde erfolgreich wiederhergestellt und heruntergeladen.`);
+    } catch (err) {
+      console.error("Error restoring backup:", err);
+      showAlert("Fehler", "Backup konnte nicht geladen werden.");
+    }
   };
 
   return (
@@ -910,6 +846,7 @@ export default function Home() {
             />
           </>
         )}
+        {activeTab === "backups" && <BackupList onRestore={handleRestoreBackup} />}
       </div>
 
       <AlertModal

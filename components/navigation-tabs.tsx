@@ -11,6 +11,7 @@ const tabs: Array<{ key: TabKey; label: string }> = [
   { key: "darlehen", label: "Darlehen" },
   { key: "ausgaben", label: "Ausgaben" },
   { key: "verkauf", label: "Verkauf" },
+  { key: "backups", label: "Backups" },
 ];
 
 export function NavigationTabs({ activeTab, onChange }: NavigationTabsProps) {

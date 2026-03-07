@@ -34,7 +34,7 @@ export function AlertModal({
           {onConfirm && (
             <button
               onClick={onClose}
-              className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors"
+              className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
             >
               {cancelLabel}
             </button>
@@ -44,7 +44,7 @@ export function AlertModal({
               if (onConfirm) onConfirm();
               onClose();
             }}
-            className="px-6 py-2 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+            className="px-6 py-2 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 cursor-pointer"
           >
             {onConfirm ? confirmLabel : "Verstanden"}
           </button>

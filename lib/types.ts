@@ -1,4 +1,4 @@
-export type TabKey = "dashboard" | "kassenbuch" | "darlehen" | "ausgaben" | "verkauf";
+export type TabKey = "dashboard" | "kassenbuch" | "darlehen" | "ausgaben" | "verkauf" | "backups";
 
 export interface DarlehenEntry {
   id: number;
