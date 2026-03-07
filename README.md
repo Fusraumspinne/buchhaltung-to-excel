@@ -1,36 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Cool, schlank, zuverlässig — dieses kleine Next.js-Tool hilft dir, deine Buchhaltungs-Einträge schnell zu verwalten, als Excel zu exportieren und wieder zu importieren. Ideal für einen minimalistischen Workflow: Einträge anlegen, prüfen, exportieren, analysieren.
 
-## Getting Started
+**Kernaussage:** exportiere saubere Excel-Dateien mit echten Formeln, importiere ohne Phantom-Einträge und nutze das kompakte Dashboard für schnelle Analysen (Woche / Monat / Jahr).
 
-First, run the development server:
+---
+
+**Highlights**
+
+- Sauberer Import/Export: Summenzeilen (z. B. GESAMT) werden beim Re-Import ignoriert.
+- Formeln statt Festwerte: Exportierte Summen sind Excel-Formeln, nicht harte Zahlen.
+- Datum pro Eintrag: `Darlehen`, `Ausgaben` und `Verkauf` haben jetzt ein echtes `Datum`-Feld.
+- Kompaktes Dashboard: schlichte, responsive Charts (Recharts) für Netto-Verlauf und Einnahmen vs. Ausgaben.
+- Robuster Parser: Zahlenformate (DE/EN), Währungszeichen und Formelergebnisse werden berücksichtigt.
+
+---
+
+**Schnellstart (Entwicklung)**
+
+1. Abhängigkeiten installieren
+
+```bash
+npm install
+```
+
+2. Dev-Server starten
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. Öffne die App
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Besuche http://localhost:3000 in deinem Browser.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+**Wichtige Dateien**
 
-To learn more about Next.js, take a look at the following resources:
+- Übersicht & UI: [app/page.tsx](app/page.tsx)
+- Import/Export-Logik und Parser: [app/page.tsx](app/page.tsx)
+- Datentypen: [lib/types.ts](lib/types.ts)
+- Tabellen-Komponenten: [components/*-table.tsx](components)
+- Dashboard (Analytics): [components/dashboard-analytics.tsx](components/dashboard-analytics.tsx)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Wie der Import/Export funktioniert (kurz):**
 
-## Deploy on Vercel
+- Beim Export erstellt das Tool: `Kassenbuch`, `Darlehen`, `Ausgaben`, `Verkauf` Sheets. Summen werden als Excel-Formeln gesetzt, damit Nachbearbeitung in Excel die Werte automatisch aktualisiert.
+- Beim Import werden Kopfzeilen gematcht (robust gegen Spaltenverschiebungen). Metazeilen wie `GESAMT`, `SUMME`, oder `Einträge:` und komplett leere Zeilen werden verworfen, so entstehen keine Phantom-Datensätze.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Tip: Wenn du eine ältere Excel-Version ohne `Datum`-Spalte importierst, wird automatisch `heute` als Fallback gesetzt — rückwärtskompatibel.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+Design- und UX-Philosophie
+
+- Minimalistisch: dezente Farben, klare Ränder, übersichtliche Buttons.
+- Mobile-first: Tabellen & Dashboard skalieren, Charts sind kompakt.
+- Kein bloat: Charts nutzen `recharts` für gute Optik ohne großen Overhead.
+
+---
+
+Fehlerbehebung & Hinweise
+
+- Keine Einträge nach Import? Prüfe, ob die Datei echte Datenzeilen enthält (nicht nur Summenzeilen).
+- Wenn Zahlen merkwürdig formatiert sind (z. B. Währungssymbole oder NBSP), hilft der Parser — meldet mir Beispiele, wenn etwas fehlt.
+
+---
+
+Contributing
+
+Wenn du Features möchtest (z. B. CSV-Import, PDF-Export, oder erweiterte Filter im Dashboard), öffne ein Issue oder erstelle einen PR — ich helfe beim Review.
+
+---
+
+Viel Spaß beim Verwalten deiner Zahlen.

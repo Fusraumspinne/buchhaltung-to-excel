@@ -1,167 +1,638 @@
-"use client"
+"use client";
 
-import { useState } from 'react'
-import * as ExcelJS from 'exceljs'
-import { saveAs } from 'file-saver'
-import { Plus, Download, Trash2, FileSpreadsheet, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { ChangeEvent, useMemo, useState } from "react";
+import * as ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
+import { Download, FileSpreadsheet } from "lucide-react";
+import { AusgabenTable } from "@/components/ausgaben-table";
+import { DarlehenTable } from "@/components/darlehen-table";
+import { DashboardAnalytics } from "@/components/dashboard-analytics";
+import { KassenbuchTable } from "@/components/kassenbuch-table";
+import { NavigationTabs } from "@/components/navigation-tabs";
+import { Pagination } from "@/components/pagination";
+import { SummaryCards } from "@/components/summary-cards";
+import { VerkaufTable } from "@/components/verkauf-table";
+import {
+  AusgabenEntry,
+  DarlehenEntry,
+  KassenbuchEntry,
+  TabKey,
+  VerkaufEntry,
+} from "@/lib/types";
 
-interface ProductRow {
-  id: string;
-  datum: string;
-  produkt: string;
-  groesse: string;
-  verkaufspreis: number;
-  einkaufspreis: number;
+function today() {
+  return new Date().toISOString().split("T")[0];
+}
+
+function parseCellText(value: ExcelJS.CellValue | null | undefined) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return String(value);
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  if (value instanceof Date) {
+    return value.toISOString().split("T")[0];
+  }
+  if (typeof value === "object") {
+    if ("text" in value && typeof value.text === "string") {
+      return value.text;
+    }
+    if ("richText" in value && Array.isArray(value.richText)) {
+      return value.richText.map((part) => part.text).join("");
+    }
+    if ("result" in value && value.result !== null && value.result !== undefined) {
+      return String(value.result);
+    }
+  }
+  return String(value);
+}
+
+function parseCellNumber(value: ExcelJS.CellValue | null | undefined) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (value && typeof value === "object" && "result" in value && typeof value.result === "number") {
+    return Number.isFinite(value.result) ? value.result : 0;
+  }
+
+  const raw = parseCellText(value).trim();
+  if (!raw) {
+    return 0;
+  }
+
+  const cleaned = raw.replace(/[\s\u00A0€$£]/g, "");
+  const commaCount = (cleaned.match(/,/g) || []).length;
+  const dotCount = (cleaned.match(/\./g) || []).length;
+
+  let normalized = cleaned;
+  if (commaCount > 0 && dotCount > 0) {
+    if (cleaned.lastIndexOf(",") > cleaned.lastIndexOf(".")) {
+      normalized = cleaned.replace(/\./g, "").replace(",", ".");
+    } else {
+      normalized = cleaned.replace(/,/g, "");
+    }
+  } else if (commaCount > 0 && dotCount === 0) {
+    normalized = cleaned.replace(",", ".");
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isMetaRowLabel(value: ExcelJS.CellValue | null | undefined) {
+  const normalized = parseCellText(value).trim().toLowerCase();
+  return (
+    normalized === "gesamt" ||
+    normalized === "summe" ||
+    normalized === "total" ||
+    normalized.startsWith("eintr")
+  );
+}
+
+function isEffectivelyEmpty(values: Array<ExcelJS.CellValue | null | undefined>) {
+  return values.every((value) => parseCellText(value).trim() === "");
+}
+
+function normalizeHeaderLabel(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function getHeaderColumnMap(sheet: ExcelJS.Worksheet | undefined) {
+  const map = new Map<string, number>();
+  if (!sheet) {
+    return map;
+  }
+
+  sheet.getRow(1).eachCell((cell, colNumber) => {
+    const normalizedHeader = normalizeHeaderLabel(parseCellText(cell.value));
+    if (normalizedHeader) {
+      map.set(normalizedHeader, colNumber);
+    }
+  });
+
+  return map;
+}
+
+function resolveColumnIndex(headerMap: Map<string, number>, aliases: string[], fallback: number) {
+  for (const alias of aliases) {
+    const found = headerMap.get(normalizeHeaderLabel(alias));
+    if (found) {
+      return found;
+    }
+  }
+  return fallback;
 }
 
 export default function Home() {
-  const [rows, setRows] = useState<ProductRow[]>([
-    { id: crypto.randomUUID(), datum: new Date().toISOString().split('T')[0], produkt: '', groesse: 'M', verkaufspreis: 0, einkaufspreis: 0 }
-  ])
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
+  const [darlehenRows, setDarlehenRows] = useState<DarlehenEntry[]>([]);
+  const [ausgabenRows, setAusgabenRows] = useState<AusgabenEntry[]>([]);
+  const [verkaufRows, setVerkaufRows] = useState<VerkaufEntry[]>([]);
 
-  const hasEmptyRow = rows.some(row => row.produkt.trim() === '' && row.verkaufspreis === 0 && row.einkaufspreis === 0)
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 10;
 
-  const addRow = () => {
-    if (!hasEmptyRow) {
-      setRows([{ id: crypto.randomUUID(), datum: new Date().toISOString().split('T')[0], produkt: '', groesse: 'M', verkaufspreis: 0, einkaufspreis: 0 }, ...rows])
-      setCurrentPage(1)
+  const handleTabChange = (newTab: TabKey) => {
+    const isIncomplete = () => {
+      switch (activeTab) {
+        case "darlehen":
+          return darlehenRows.some(r => r.name.trim() === "" || r.geprueftVon.trim() === "" || r.preis === 0);
+        case "ausgaben":
+          return ausgabenRows.some(r => r.ausgabe.trim() === "" || r.geprueftVon.trim() === "" || r.preis === 0);
+        case "verkauf":
+          return verkaufRows.some(r => r.produkt.trim() === "" || r.geprueftVon.trim() === "" || r.preis === 0);
+        default:
+          return false;
+      }
+    };
+
+    if (isIncomplete()) {
+      if (!window.confirm("Einige Einträge sind noch nicht vollständig ausgefüllt. Möchtest du sie verwerfen und die Seite wechseln?")) {
+        return;
+      }
     }
-  }
 
-  const removeRow = (id: string) => {
-    if (rows.length > 1) {
-      setRows(rows.filter(row => row.id !== id))
-    }
-  }
+    setDarlehenRows((prev) =>
+      prev.filter((r) => r.name.trim() !== "" && r.geprueftVon.trim() !== "" && r.preis !== 0),
+    );
+    setAusgabenRows((prev) =>
+      prev.filter((r) => r.ausgabe.trim() !== "" && r.geprueftVon.trim() !== "" && r.preis !== 0),
+    );
+    setVerkaufRows((prev) =>
+      prev.filter((r) => r.produkt.trim() !== "" && r.geprueftVon.trim() !== "" && r.preis !== 0),
+    );
+    setActiveTab(newTab);
+    setCurrentPage(1);
+  };
 
-  const updateRow = (id: string, field: keyof ProductRow, value: string | number) => {
-    setRows(rows.map(row => row.id === id ? { ...row, [field]: value } : row))
-  }
+  const hasEmptyDarlehen = darlehenRows.some(
+    (r) => r.name.trim() === "" || r.geprueftVon.trim() === "" || r.preis === 0,
+  );
+  const hasEmptyAusgabe = ausgabenRows.some(
+    (r) => r.ausgabe.trim() === "" || r.geprueftVon.trim() === "" || r.preis === 0,
+  );
+  const hasEmptyVerkauf = verkaufRows.some(
+    (r) => r.produkt.trim() === "" || r.geprueftVon.trim() === "" || r.preis === 0,
+  );
 
-  const totalUmsatz = rows.reduce((sum, row) => sum + row.verkaufspreis, 0)
-  const totalAusgaben = rows.reduce((sum, row) => sum + row.einkaufspreis, 0)
-  const totalGewinn = totalUmsatz - totalAusgaben
+  const getNextId = (
+    currentDarlehen: DarlehenEntry[],
+    currentAusgaben: AusgabenEntry[],
+    currentVerkauf: VerkaufEntry[],
+  ) => {
+    const ids = [
+      ...currentDarlehen.map((r) => r.id),
+      ...currentAusgaben.map((r) => r.id),
+      ...currentVerkauf.map((r) => r.id),
+    ];
+    return ids.length > 0 ? Math.max(...ids) + 1 : 1;
+  };
 
-  const sortedRows = [...rows].sort((a, b) => {
-    const aEmpty = a.produkt.trim() === '' && a.verkaufspreis === 0 && a.einkaufspreis === 0
-    const bEmpty = b.produkt.trim() === '' && b.verkaufspreis === 0 && b.einkaufspreis === 0
-    if (aEmpty && !bEmpty) return -1
-    if (!aEmpty && bEmpty) return 1
-    return new Date(b.datum).getTime() - new Date(a.datum).getTime()
-  })
-  
-  const totalPages = Math.ceil(sortedRows.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedRows = sortedRows.slice(startIndex, startIndex + itemsPerPage)
+  const addDarlehen = () => {
+    if (hasEmptyDarlehen) return;
+    setDarlehenRows((prev) => [
+      {
+        id: getNextId(prev, ausgabenRows, verkaufRows),
+        datum: today(),
+        name: "",
+        anzahl: 1,
+        preis: 0,
+        geprueftVon: "",
+      },
+      ...prev,
+    ]);
+  };
+
+  const addAusgabe = () => {
+    if (hasEmptyAusgabe) return;
+    setAusgabenRows((prev) => [
+      {
+        id: getNextId(darlehenRows, prev, verkaufRows),
+        datum: today(),
+        ausgabe: "",
+        preis: 0,
+        beschreibung: "",
+        geprueftVon: "",
+      },
+      ...prev,
+    ]);
+  };
+
+  const addVerkauf = () => {
+    if (hasEmptyVerkauf) return;
+    setVerkaufRows((prev) => [
+      {
+        id: getNextId(darlehenRows, ausgabenRows, prev),
+        datum: today(),
+        produkt: "",
+        preis: 0,
+        beschreibung: "",
+        geprueftVon: "",
+      },
+      ...prev,
+    ]);
+  };
+
+  const totalDarlehen = useMemo(
+    () => darlehenRows.reduce((sum, row) => sum + row.preis * row.anzahl, 0),
+    [darlehenRows],
+  );
+  const totalAusgaben = useMemo(
+    () => ausgabenRows.reduce((sum, row) => sum + row.preis, 0),
+    [ausgabenRows],
+  );
+  const totalVerkauf = useMemo(
+    () => verkaufRows.reduce((sum, row) => sum + row.preis, 0),
+    [verkaufRows],
+  );
+  const gesamtSaldo = totalDarlehen + totalVerkauf - totalAusgaben;
+
+  const kassenbuchRows = useMemo<KassenbuchEntry[]>(() => {
+    const fromDarlehen = darlehenRows.map((row) => ({
+      id: row.id,
+      datum: row.datum,
+      typ: "Darlehen" as const,
+      einnahmen: row.preis * row.anzahl,
+      ausgaben: 0,
+      saldo: row.preis * row.anzahl,
+      geprueftVon: row.geprueftVon,
+    }));
+
+    const fromAusgaben = ausgabenRows.map((row) => ({
+      id: row.id,
+      datum: row.datum,
+      typ: "Ausgabe" as const,
+      einnahmen: 0,
+      ausgaben: row.preis,
+      saldo: -row.preis,
+      geprueftVon: row.geprueftVon,
+    }));
+
+    const fromVerkauf = verkaufRows.map((row) => ({
+      id: row.id,
+      datum: row.datum,
+      typ: "Verkauf" as const,
+      einnahmen: row.preis,
+      ausgaben: 0,
+      saldo: row.preis,
+      geprueftVon: row.geprueftVon,
+    }));
+
+    const allSorted = [...fromDarlehen, ...fromAusgaben, ...fromVerkauf].sort((a, b) => a.id - b.id);
+
+    return allSorted.reduce<KassenbuchEntry[]>((acc, row) => {
+      const previousSaldo = acc.length > 0 ? acc[acc.length - 1].saldo : 0;
+      acc.push({
+        ...row,
+        saldo: previousSaldo + row.saldo,
+      });
+      return acc;
+    }, []);
+  }, [darlehenRows, ausgabenRows, verkaufRows]);
 
   const exportToExcel = async () => {
-    const workbook = new ExcelJS.Workbook()
-    const worksheet = workbook.addWorksheet('Verkäufe')
+    const workbook = new ExcelJS.Workbook();
 
-    worksheet.columns = [
-      { header: 'Datum', key: 'datum', width: 15 },
-      { header: 'Produkt', key: 'produkt', width: 25 },
-      { header: 'Größe', key: 'groesse', width: 10 },
-      { header: 'Verkaufspreis (€)', key: 'verkaufspreis', width: 15 },
-      { header: 'Einkaufspreis (€)', key: 'einkaufspreis', width: 15 }
-    ]
-
-    const validRows = sortedRows.filter(row => 
-      row.produkt.trim() !== '' && 
-      (row.verkaufspreis > 0 || row.einkaufspreis > 0)
-    )
-
-    validRows.forEach((row, index) => {
-      const rowNum = index + 2
-      worksheet.addRow({
-        datum: row.datum,
-        produkt: row.produkt,
-        groesse: row.groesse,
-        verkaufspreis: row.verkaufspreis,
-        einkaufspreis: row.einkaufspreis,
-      })
-
-      worksheet.getCell(`D${rowNum}`).numFmt = '#,##0.00'
-      worksheet.getCell(`E${rowNum}`).numFmt = '#,##0.00'
-    })
-
-    const footerRowNum = validRows.length + 3
-    worksheet.getCell(`C${footerRowNum}`).value = 'GESAMT:'
-    worksheet.getCell(`C${footerRowNum}`).font = { bold: true }
+    const kassenbuchSheet = workbook.addWorksheet("Kassenbuch");
+    kassenbuchSheet.columns = [
+      { header: "ID", key: "id", width: 10 },
+      { header: "Datum", key: "datum", width: 14 },
+      { header: "Typ", key: "typ", width: 16 },
+      { header: "Einnahmen", key: "einnahmen", width: 14 },
+      { header: "Ausgaben", key: "ausgaben", width: 14 },
+      { header: "Saldo", key: "saldo", width: 14 },
+      { header: "Geprueft von", key: "geprueftVon", width: 20 },
+    ];
+    kassenbuchRows.forEach((row) => {
+      kassenbuchSheet.addRow(row);
+    });
     
-    worksheet.getCell(`D${footerRowNum}`).value = { formula: `SUM(D2:D${validRows.length + 1})`, result: totalUmsatz }
-    worksheet.getCell(`E${footerRowNum}`).value = { formula: `SUM(E2:E${validRows.length + 1})`, result: totalAusgaben }
-    
-    const profitRowNum = footerRowNum + 1
-    worksheet.getCell(`C${profitRowNum}`).value = 'GEWINN:'
-    worksheet.getCell(`C${profitRowNum}`).font = { bold: true }
-    worksheet.getCell(`D${profitRowNum}`).value = { formula: `D${footerRowNum}-E${footerRowNum}`, result: totalGewinn }
-    
-    const footerCells = [`D${footerRowNum}`, `E${footerRowNum}`, `D${profitRowNum}`]
-    footerCells.forEach(cell => {
-      worksheet.getCell(cell).numFmt = '#,##0.00'
-      worksheet.getCell(cell).font = { bold: true }
-    })
+    const kbTotalRowNum = kassenbuchRows.length + 2;
+    const kbTotalRow = kassenbuchSheet.addRow({
+      id: "GESAMT",
+      einnahmen: { formula: `SUM(D2:D${kbTotalRowNum - 1})` },
+      ausgaben: { formula: `SUM(E2:E${kbTotalRowNum - 1})` },
+      saldo: { formula: `D${kbTotalRowNum}-E${kbTotalRowNum}` },
+    });
+    kbTotalRow.font = { bold: true };
 
-    worksheet.getRow(1).font = { bold: true }
+    const darlehenSheet = workbook.addWorksheet("Darlehen");
+    darlehenSheet.columns = [
+      { header: "ID", key: "id", width: 10 },
+      { header: "Datum", key: "datum", width: 14 },
+      { header: "Name", key: "name", width: 24 },
+      { header: "Anzahl", key: "anzahl", width: 12 },
+      { header: "Preis", key: "preis", width: 14 },
+      { header: "Geprueft von", key: "geprueftVon", width: 20 },
+    ];
+    [...darlehenRows].sort((a, b) => a.id - b.id).forEach((row) => {
+      darlehenSheet.addRow(row);
+    });
     
-    const buffer = await workbook.xlsx.writeBuffer()
-    saveAs(new Blob([buffer]), 'buchhaltung.xlsx')
-  }
+    const darlehenTotalRowNum = darlehenRows.length + 2;
+    const darlehenTotalRow = darlehenSheet.addRow({
+      id: "GESAMT",
+      anzahl: { formula: `SUM(D2:D${darlehenTotalRowNum - 1})` },
+      preis: { formula: `SUMPRODUCT(D2:D${darlehenTotalRowNum - 1},E2:E${darlehenTotalRowNum - 1})` },
+    });
+    darlehenTotalRow.font = { bold: true };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const ausgabenSheet = workbook.addWorksheet("Ausgaben");
+    ausgabenSheet.columns = [
+      { header: "ID", key: "id", width: 10 },
+      { header: "Datum", key: "datum", width: 14 },
+      { header: "Ausgabe", key: "ausgabe", width: 24 },
+      { header: "Preis", key: "preis", width: 14 },
+      { header: "Beschreibung", key: "beschreibung", width: 34 },
+      { header: "Geprueft von", key: "geprueftVon", width: 20 },
+    ];
+    [...ausgabenRows].sort((a, b) => a.id - b.id).forEach((row) => {
+      ausgabenSheet.addRow(row);
+    });
+    
+    const ausgabenTotalRowNum = ausgabenRows.length + 2;
+    const ausgabenTotalRow = ausgabenSheet.addRow({
+      id: "GESAMT",
+      preis: { formula: `SUM(D2:D${ausgabenTotalRowNum - 1})` },
+    });
+    ausgabenTotalRow.font = { bold: true };
+
+    const verkaufSheet = workbook.addWorksheet("Verkauf");
+    verkaufSheet.columns = [
+      { header: "ID", key: "id", width: 10 },
+      { header: "Datum", key: "datum", width: 14 },
+      { header: "Produkt", key: "produkt", width: 24 },
+      { header: "Preis", key: "preis", width: 14 },
+      { header: "Beschreibung", key: "beschreibung", width: 34 },
+      { header: "Geprueft von", key: "geprueftVon", width: 20 },
+    ];
+    [...verkaufRows].sort((a, b) => a.id - b.id).forEach((row) => {
+      verkaufSheet.addRow(row);
+    });
+    
+    const verkaufTotalRowNum = verkaufRows.length + 2;
+    const verkaufTotalRow = verkaufSheet.addRow({
+      id: "GESAMT",
+      preis: { formula: `SUM(D2:D${verkaufTotalRowNum - 1})` },
+    });
+    verkaufTotalRow.font = { bold: true };
+
+    [kassenbuchSheet, darlehenSheet, ausgabenSheet, verkaufSheet].forEach((sheet) => {
+      sheet.getRow(1).font = { bold: true };
+      
+      sheet.eachRow((row, rowNum) => {
+        if (rowNum === 1) return;
+        row.eachCell((cell, colNum) => {
+          const header = sheet.getRow(1).getCell(colNum).text;
+          if (["Preis", "Einnahmen", "Ausgaben", "Saldo"].includes(header)) {
+            cell.numFmt = "#,##0.00";
+          }
+        });
+      });
+    });
+
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("de-DE").replace(/\./g, "-");
+    const timeStr = now.toLocaleTimeString("de-DE", { hour: '2-digit', minute: '2-digit' }).replace(/:/g, "-");
+    const filename = `buchhaltung_${dateStr}_${timeStr}.xlsx`;
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), filename);
+  };
+
+  const findSheet = (workbook: ExcelJS.Workbook, name: string) =>
+    workbook.worksheets.find((sheet) => sheet.name.toLowerCase() === name.toLowerCase());
+
+  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      return;
+    }
 
     try {
-      const workbook = new ExcelJS.Workbook()
-      const arrayBuffer = await file.arrayBuffer()
-      await workbook.xlsx.load(arrayBuffer as any)
-      const worksheet = workbook.getWorksheet(1)
-      
-      if (worksheet) {
-        const newRows: ProductRow[] = []
-        worksheet.eachRow((row, rowNumber) => {
-          if (rowNumber === 1) return
-          
-          newRows.push({
-            id: crypto.randomUUID(),
-            datum: row.getCell(1).text || new Date().toISOString().split('T')[0],
-            produkt: row.getCell(2).text || '',
-            groesse: row.getCell(3).text || 'M',
-            verkaufspreis: Number(row.getCell(4).value) || 0,
-            einkaufspreis: Number(row.getCell(5).value) || 0,
-          })
-        })
-        if (newRows.length > 0) {
-          const cleanedRows = newRows.filter(row => 
-            row.produkt.trim() !== '' || row.verkaufspreis !== 0 || row.einkaufspreis !== 0
-          )
-          
-          const finalRows = [
-            {
-              id: crypto.randomUUID(),
-              datum: new Date().toISOString().split('T')[0],
-              produkt: '',
-              groesse: 'M',
-              verkaufspreis: 0,
-              einkaufspreis: 0,
-            },
-            ...cleanedRows
-          ]
-          
-          setRows(finalRows)
-          setCurrentPage(1)
+      const workbook = new ExcelJS.Workbook();
+      const arrayBuffer = await file.arrayBuffer();
+      await workbook.xlsx.load(arrayBuffer as ArrayBuffer);
+
+      const usedIds = new Set<number>();
+      let nextImportedId = 1;
+
+      const readOrCreateId = (value: ExcelJS.CellValue | null | undefined) => {
+        const candidate = Number(parseCellText(value));
+        if (Number.isInteger(candidate) && candidate > 0 && !usedIds.has(candidate)) {
+          usedIds.add(candidate);
+          nextImportedId = Math.max(nextImportedId, candidate + 1);
+          return candidate;
         }
-      }
+        while (usedIds.has(nextImportedId)) {
+          nextImportedId += 1;
+        }
+        const generated = nextImportedId;
+        usedIds.add(generated);
+        nextImportedId += 1;
+        return generated;
+      };
+
+      const importedDarlehen: DarlehenEntry[] = [];
+      const importedAusgaben: AusgabenEntry[] = [];
+      const importedVerkauf: VerkaufEntry[] = [];
+
+      const darlehenSheet = findSheet(workbook, "Darlehen");
+      const ausgabenSheet = findSheet(workbook, "Ausgaben");
+      const verkaufSheet = findSheet(workbook, "Verkauf");
+
+      const ausgabenHeaderMap = getHeaderColumnMap(ausgabenSheet);
+      const ausgabenHasDatum = ausgabenHeaderMap.has(normalizeHeaderLabel("Datum"));
+      const ausgabenColumns = {
+        id: resolveColumnIndex(ausgabenHeaderMap, ["ID"], 1),
+        datum: ausgabenHasDatum
+          ? resolveColumnIndex(ausgabenHeaderMap, ["Datum"], 2)
+          : -1,
+        ausgabe: resolveColumnIndex(ausgabenHeaderMap, ["Ausgabe"], ausgabenHasDatum ? 3 : 2),
+        preis: resolveColumnIndex(ausgabenHeaderMap, ["Preis"], ausgabenHasDatum ? 4 : 3),
+        beschreibung: resolveColumnIndex(
+          ausgabenHeaderMap,
+          ["Beschreibung", "Notiz"],
+          ausgabenHasDatum ? 5 : 4,
+        ),
+        geprueftVon: resolveColumnIndex(
+          ausgabenHeaderMap,
+          ["Geprueft von", "Gepruft von", "Pruefer", "Prufer"],
+          ausgabenHasDatum ? 6 : 5,
+        ),
+      };
+
+      const verkaufHeaderMap = getHeaderColumnMap(verkaufSheet);
+      const verkaufHasDatum = verkaufHeaderMap.has(normalizeHeaderLabel("Datum"));
+      const verkaufColumns = {
+        id: resolveColumnIndex(verkaufHeaderMap, ["ID"], 1),
+        datum: verkaufHasDatum
+          ? resolveColumnIndex(verkaufHeaderMap, ["Datum"], 2)
+          : -1,
+        produkt: resolveColumnIndex(verkaufHeaderMap, ["Produkt"], verkaufHasDatum ? 3 : 2),
+        preis: resolveColumnIndex(verkaufHeaderMap, ["Preis"], verkaufHasDatum ? 4 : 3),
+        beschreibung: resolveColumnIndex(
+          verkaufHeaderMap,
+          ["Beschreibung", "Notiz"],
+          verkaufHasDatum ? 5 : 4,
+        ),
+        geprueftVon: resolveColumnIndex(
+          verkaufHeaderMap,
+          ["Geprueft von", "Gepruft von", "Pruefer", "Prufer"],
+          verkaufHasDatum ? 6 : 5,
+        ),
+      };
+
+      darlehenSheet?.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) {
+          return;
+        }
+
+        if (
+          isMetaRowLabel(row.getCell(1).value) ||
+          isEffectivelyEmpty([
+            row.getCell(1).value,
+            row.getCell(2).value,
+            row.getCell(3).value,
+            row.getCell(4).value,
+            row.getCell(5).value,
+            row.getCell(6).value,
+          ])
+        ) {
+          return;
+        }
+
+        const entry: DarlehenEntry = {
+          id: readOrCreateId(row.getCell(1).value),
+          datum: parseCellText(row.getCell(2).value) || today(),
+          name: parseCellText(row.getCell(3).value),
+          anzahl: Math.max(0, Math.floor(parseCellNumber(row.getCell(4).value))),
+          preis: parseCellNumber(row.getCell(5).value),
+          geprueftVon: parseCellText(row.getCell(6).value),
+        };
+
+        const isMeaningful =
+          entry.name.trim() !== "" ||
+          entry.anzahl > 0 ||
+          entry.preis !== 0 ||
+          entry.geprueftVon.trim() !== "";
+
+        if (isMeaningful) {
+          importedDarlehen.push(entry);
+        }
+      });
+
+      ausgabenSheet?.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) {
+          return;
+        }
+
+        const ausgabenCellValues = [
+          row.getCell(ausgabenColumns.id).value,
+          ausgabenColumns.datum > 0 ? row.getCell(ausgabenColumns.datum).value : null,
+          row.getCell(ausgabenColumns.ausgabe).value,
+          row.getCell(ausgabenColumns.preis).value,
+          row.getCell(ausgabenColumns.beschreibung).value,
+          row.getCell(ausgabenColumns.geprueftVon).value,
+        ];
+
+        if (
+          isMetaRowLabel(row.getCell(ausgabenColumns.id).value) ||
+          isEffectivelyEmpty(ausgabenCellValues)
+        ) {
+          return;
+        }
+
+        const entry: AusgabenEntry = {
+          id: readOrCreateId(row.getCell(ausgabenColumns.id).value),
+          datum:
+            ausgabenColumns.datum > 0
+              ? parseCellText(row.getCell(ausgabenColumns.datum).value) || today()
+              : today(),
+          ausgabe: parseCellText(row.getCell(ausgabenColumns.ausgabe).value),
+          preis: parseCellNumber(row.getCell(ausgabenColumns.preis).value),
+          beschreibung: parseCellText(row.getCell(ausgabenColumns.beschreibung).value),
+          geprueftVon: parseCellText(row.getCell(ausgabenColumns.geprueftVon).value),
+        };
+
+        const isMeaningful =
+          entry.ausgabe.trim() !== "" ||
+          entry.preis !== 0 ||
+          entry.beschreibung.trim() !== "" ||
+          entry.geprueftVon.trim() !== "";
+
+        if (isMeaningful) {
+          importedAusgaben.push(entry);
+        }
+      });
+
+      verkaufSheet?.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) {
+          return;
+        }
+
+        const verkaufCellValues = [
+          row.getCell(verkaufColumns.id).value,
+          verkaufColumns.datum > 0 ? row.getCell(verkaufColumns.datum).value : null,
+          row.getCell(verkaufColumns.produkt).value,
+          row.getCell(verkaufColumns.preis).value,
+          row.getCell(verkaufColumns.beschreibung).value,
+          row.getCell(verkaufColumns.geprueftVon).value,
+        ];
+
+        if (
+          isMetaRowLabel(row.getCell(verkaufColumns.id).value) ||
+          isEffectivelyEmpty(verkaufCellValues)
+        ) {
+          return;
+        }
+
+        const entry: VerkaufEntry = {
+          id: readOrCreateId(row.getCell(verkaufColumns.id).value),
+          datum:
+            verkaufColumns.datum > 0
+              ? parseCellText(row.getCell(verkaufColumns.datum).value) || today()
+              : today(),
+          produkt: parseCellText(row.getCell(verkaufColumns.produkt).value),
+          preis: parseCellNumber(row.getCell(verkaufColumns.preis).value),
+          beschreibung: parseCellText(row.getCell(verkaufColumns.beschreibung).value),
+          geprueftVon: parseCellText(row.getCell(verkaufColumns.geprueftVon).value),
+        };
+
+        const isMeaningful =
+          entry.produkt.trim() !== "" ||
+          entry.preis !== 0 ||
+          entry.beschreibung.trim() !== "" ||
+          entry.geprueftVon.trim() !== "";
+
+        if (isMeaningful) {
+          importedVerkauf.push(entry);
+        }
+      });
+
+      setDarlehenRows(importedDarlehen.sort((a, b) => b.id - a.id));
+      setAusgabenRows(importedAusgaben.sort((a, b) => b.id - a.id));
+      setVerkaufRows(importedVerkauf.sort((a, b) => b.id - a.id));
     } catch (error) {
-      console.error("Fehler beim Laden:", error)
-      alert("Fehler beim Lesen der Excel-Datei.")
+      console.error("Fehler beim Laden:", error);
+      alert("Fehler beim Lesen der Excel-Datei.");
     }
-    e.target.value = ''
-  }
+
+    e.target.value = "";
+  };
 
   return (
     <div className="min-h-screen p-4 md:p-6 bg-white text-slate-900 font-sans">
@@ -179,155 +650,145 @@ export default function Home() {
               onClick={exportToExcel}
               className="bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded text-[11px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-md shadow-slate-200 cursor-pointer"
             >
-              <Download className="w-3.5 h-3.5" /> Export
+              <Download className="w-3.5 h-3.5" /> <div className="text-[11px] font-bold uppercase tracking-wider">Export</div>
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 mb-8">
-          <div className="bg-slate-50/50 border-b-2 border-slate-100 rounded-t p-3 transition-all">
-            <p className="text-[10px] uppercase font-bold text-slate-400 mb-1 tracking-widest">Umsatz</p>
-            <p className="text-xl font-black text-slate-900">{totalUmsatz.toFixed(2)}€</p>
-          </div>
-          <div className="bg-slate-50/50 border-b-2 border-slate-100 rounded-t p-3 transition-all">
-            <p className="text-[10px] uppercase font-bold text-slate-400 mb-1 tracking-widest">Ausgaben</p>
-            <p className="text-xl font-black text-slate-900">{totalAusgaben.toFixed(2)}€</p>
-          </div>
-          <div className={`border-b-2 rounded-t p-3 transition-all ${totalGewinn >= 0 ? 'bg-green-50/30 border-green-200' : 'bg-red-50/30 border-red-200'}`}>
-            <p className={`text-[10px] uppercase font-bold mb-1 tracking-widest ${totalGewinn >= 0 ? 'text-green-600' : 'text-red-600'}`}>Gewinn</p>
-            <p className={`text-xl font-black ${totalGewinn >= 0 ? 'text-green-700' : 'text-red-700'}`}>{totalGewinn.toFixed(2)}€</p>
-          </div>
-        </div>
+        <SummaryCards
+          totalDarlehen={totalDarlehen}
+          totalAusgaben={totalAusgaben}
+          totalVerkauf={totalVerkauf}
+          gesamtSaldo={gesamtSaldo}
+        />
 
-        <div className="bg-white border-t border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-slate-50/80 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-100">
-                  <th className="px-4 py-3 w-32">Datum</th>
-                  <th className="px-4 py-3">Produkt</th>
-                  <th className="px-4 py-3 w-24">Größe</th>
-                  <th className="px-4 py-3 w-28 text-right">Verkauf</th>
-                  <th className="px-4 py-3 w-28 text-right">Einkauf</th>
-                  <th className="px-4 py-3 w-10 text-center"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {paginatedRows.map((row) => (
-                  <tr key={row.id} className="hover:bg-slate-50/40 transition-colors">
-                    <td className="px-2 py-2">
-                      <input
-                        type="date"
-                        value={row.datum}
-                        onChange={(e) => updateRow(row.id, 'datum', e.target.value)}
-                        className="w-full bg-transparent p-1 text-xs border border-transparent focus:border-slate-100 rounded outline-none cursor-pointer"
-                      />
-                    </td>
-                    <td className="px-2 py-2">
-                      <input
-                        type="text"
-                        value={row.produkt}
-                        placeholder="Pullover, T-Shirt..."
-                        onChange={(e) => updateRow(row.id, 'produkt', e.target.value)}
-                        className="w-full bg-transparent p-1 text-xs border border-transparent focus:border-slate-100 rounded outline-none"
-                      />
-                    </td>
-                    <td className="px-2 py-2">
-                      <select
-                        value={row.groesse}
-                        onChange={(e) => updateRow(row.id, 'groesse', e.target.value)}
-                        className="w-full bg-transparent p-1 text-xs cursor-pointer border border-transparent focus:border-slate-100 rounded outline-none appearance-none hover:text-blue-600"
-                      >
-                        {['XS', 'S', 'M', 'L', 'XL', 'XXL'].map(g => (
-                          <option key={g} value={g}>{g}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-2 py-2 text-right">
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={row.verkaufspreis === 0 ? '' : row.verkaufspreis}
-                        placeholder="0.00"
-                        onChange={(e) => updateRow(row.id, 'verkaufspreis', e.target.value === '' ? 0 : parseFloat(e.target.value))}
-                        className="w-20 bg-transparent p-1 text-xs text-right border border-transparent focus:border-slate-100 rounded outline-none"
-                      />
-                    </td>
-                    <td className="px-2 py-2 text-right">
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={row.einkaufspreis === 0 ? '' : row.einkaufspreis}
-                        placeholder="0.00"
-                        onChange={(e) => updateRow(row.id, 'einkaufspreis', e.target.value === '' ? 0 : parseFloat(e.target.value))}
-                        className="w-20 bg-transparent p-1 text-xs text-right border border-transparent focus:border-slate-100 rounded outline-none"
-                      />
-                    </td>
-                    <td className="px-2 py-2 text-center">
-                      <button
-                        onClick={() => removeRow(row.id)}
-                        className="text-slate-300 hover:text-red-500 transition-colors p-1 cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-4 gap-4 bg-slate-50/30 border-t border-slate-100">
-            <button
-              onClick={addRow}
-              className="group flex items-center gap-1.5 text-slate-400 hover:text-slate-900 text-[10px] font-black uppercase tracking-widest outline-none transition-all cursor-pointer"
-            >
-              <div className="bg-slate-100 group-hover:bg-slate-200 p-1 rounded transition-colors">
-                <Plus className="w-3 h-3" />
-              </div> 
-              Hinzufügen
-            </button>
-            
-            {totalPages > 1 && (
-              <div className="flex items-center gap-1">
-                <button 
-                  onClick={() => setCurrentPage(1)} 
-                  disabled={currentPage === 1}
-                  className="p-1.5 rounded hover:bg-white text-slate-400 hover:text-slate-900 disabled:opacity-20 transition-all border border-transparent hover:border-slate-200"
-                >
-                  <ChevronsLeft className="w-3.5 h-3.5" />
-                </button>
-                <button 
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} 
-                  disabled={currentPage === 1}
-                  className="p-1.5 rounded hover:bg-white text-slate-400 hover:text-slate-900 disabled:opacity-20 transition-all border border-transparent hover:border-slate-200"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                </button>
-                <div className="flex items-center text-[10px] font-black text-slate-400 tracking-tighter mx-2">
-                  <span className="text-slate-900">{currentPage}</span>
-                  <span className="mx-1">/</span>
-                  <span>{totalPages}</span>
-                </div>
-                <button 
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} 
-                  disabled={currentPage === totalPages}
-                  className="p-1.5 rounded hover:bg-white text-slate-400 hover:text-slate-900 disabled:opacity-20 transition-all border border-transparent hover:border-slate-200"
-                >
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-                <button 
-                  onClick={() => setCurrentPage(totalPages)} 
-                  disabled={currentPage === totalPages}
-                  className="p-1.5 rounded hover:bg-white text-slate-400 hover:text-slate-900 disabled:opacity-20 transition-all border border-transparent hover:border-slate-200"
-                >
-                  <ChevronsRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        <NavigationTabs activeTab={activeTab} onChange={handleTabChange} />
+
+        {activeTab === "dashboard" && <DashboardAnalytics rows={kassenbuchRows} />}
+        {activeTab === "kassenbuch" && (
+          <>
+            <KassenbuchTable 
+              rows={[...kassenbuchRows]
+                .sort((a, b) => b.id - a.id)
+                .slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)
+              } 
+            />
+            <Pagination 
+              currentPage={currentPage}
+              totalPages={Math.ceil(kassenbuchRows.length / rowsPerPage)}
+              onPageChange={setCurrentPage}
+            />
+          </>
+        )}
+        {activeTab === "darlehen" && (
+          <>
+            <DarlehenTable
+              rows={darlehenRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)}
+              globalMaxId={
+                [...darlehenRows, ...ausgabenRows, ...verkaufRows].reduce(
+                  (max, r) => (r.id > max ? r.id : max),
+                  0
+                )
+              }
+              onAdd={() => {
+                addDarlehen();
+                setCurrentPage(1);
+              }}
+              onRemove={(id) => {
+                const currentMaxId = [...darlehenRows, ...ausgabenRows, ...verkaufRows].reduce(
+                  (max, r) => (r.id > max ? r.id : max),
+                  0
+                );
+                if (id === currentMaxId && window.confirm("Möchtest du diesen Eintrag wirklich löschen?")) {
+                  setDarlehenRows((prev) => prev.filter((row) => row.id !== id));
+                }
+              }}
+              onUpdate={(id, field, value) =>
+                setDarlehenRows((prev) =>
+                  prev.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
+                )
+              }
+            />
+            <Pagination 
+              currentPage={currentPage}
+              totalPages={Math.ceil(darlehenRows.length / rowsPerPage)}
+              onPageChange={setCurrentPage}
+            />
+          </>
+        )}
+        {activeTab === "ausgaben" && (
+          <>
+            <AusgabenTable
+              rows={ausgabenRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)}
+              globalMaxId={
+                [...darlehenRows, ...ausgabenRows, ...verkaufRows].reduce(
+                  (max, r) => (r.id > max ? r.id : max),
+                  0
+                )
+              }
+              onAdd={() => {
+                addAusgabe();
+                setCurrentPage(1);
+              }}
+              onRemove={(id) => {
+                const currentMaxId = [...darlehenRows, ...ausgabenRows, ...verkaufRows].reduce(
+                  (max, r) => (max === 0 || r.id > max ? r.id : max),
+                  0
+                );
+                if (id === currentMaxId && window.confirm("Möchtest du diesen Eintrag wirklich löschen?")) {
+                  setAusgabenRows((prev) => prev.filter((row) => row.id !== id));
+                }
+              }}
+              onUpdate={(id, field, value) =>
+                setAusgabenRows((prev) =>
+                  prev.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
+                )
+              }
+            />
+            <Pagination 
+              currentPage={currentPage}
+              totalPages={Math.ceil(ausgabenRows.length / rowsPerPage)}
+              onPageChange={setCurrentPage}
+            />
+          </>
+        )}
+        {activeTab === "verkauf" && (
+          <>
+            <VerkaufTable
+              rows={verkaufRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)}
+              globalMaxId={
+                [...darlehenRows, ...ausgabenRows, ...verkaufRows].reduce(
+                  (max, r) => (r.id > max ? r.id : max),
+                  0
+                )
+              }
+              onAdd={() => {
+                addVerkauf();
+                setCurrentPage(1);
+              }}
+              onRemove={(id) => {
+                const currentMaxId = [...darlehenRows, ...ausgabenRows, ...verkaufRows].reduce(
+                  (max, r) => (r.id > max ? r.id : max),
+                  0
+                );
+                if (id === currentMaxId && window.confirm("Möchtest du diesen Eintrag wirklich löschen?")) {
+                  setVerkaufRows((prev) => prev.filter((row) => row.id !== id));
+                }
+              }}
+              onUpdate={(id, field, value) =>
+                setVerkaufRows((prev) =>
+                  prev.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
+                )
+              }
+            />
+            <Pagination 
+              currentPage={currentPage}
+              totalPages={Math.ceil(verkaufRows.length / rowsPerPage)}
+              onPageChange={setCurrentPage}
+            />
+          </>
+        )}
       </div>
     </div>
-  )
+  );
 }
