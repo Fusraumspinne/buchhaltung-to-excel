@@ -1,9 +1,10 @@
 "use client";
 
-import { ChangeEvent, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import * as ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { Download, FileSpreadsheet } from "lucide-react";
+import { AlertModal } from "@/components/alert-modal";
 import { AusgabenTable } from "@/components/ausgaben-table";
 import { DarlehenTable } from "@/components/darlehen-table";
 import { DashboardAnalytics } from "@/components/dashboard-analytics";
@@ -145,6 +146,92 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 10;
 
+  // Persistence Logic
+  const [alertConfig, setAlertConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+    confirmLabel?: string;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+  });
+
+  const showAlert = (title: string, message: string) => {
+    setAlertConfig({ isOpen: true, title, message });
+  };
+
+  const showConfirm = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    confirmLabel = "Bestätigen"
+  ) => {
+    setAlertConfig({ isOpen: true, title, message, onConfirm, confirmLabel });
+  };
+
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Persistence Logic
+  useEffect(() => {
+    const savedData = localStorage.getItem("buchhaltung_data");
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        
+        // Prüfen ob mindestens ein Eintrag vorhanden ist
+        const hasEntries = 
+          (parsed.darlehen?.length > 0) || 
+          (parsed.ausgaben?.length > 0) || 
+          (parsed.verkauf?.length > 0);
+
+        if (!hasEntries) {
+          setHasInitialized(true);
+          return;
+        }
+
+        const date = new Date(parsed.timestamp).toLocaleString("de-DE", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+        showConfirm(
+          "Letzten Stand laden?",
+          `Es wurde ein gespeicherter Stand vom ${date} gefunden. Möchtest du diesen laden?`,
+          () => {
+            setDarlehenRows(parsed.darlehen || []);
+            setAusgabenRows(parsed.ausgaben || []);
+            setVerkaufRows(parsed.verkauf || []);
+            setHasInitialized(true);
+          },
+          "Laden"
+        );
+      } catch (e) {
+        console.error("Error parsing saved data", e);
+        setHasInitialized(true);
+      }
+    } else {
+      setHasInitialized(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hasInitialized) return;
+    
+    const dataToSave = {
+      darlehen: darlehenRows,
+      ausgaben: ausgabenRows,
+      verkauf: verkaufRows,
+      timestamp: new Date().toISOString(),
+    };
+    localStorage.setItem("buchhaltung_data", JSON.stringify(dataToSave));
+  }, [darlehenRows, ausgabenRows, verkaufRows, hasInitialized]);
+
   const handleTabChange = (newTab: TabKey) => {
     const isIncomplete = () => {
       switch (activeTab) {
@@ -160,9 +247,25 @@ export default function Home() {
     };
 
     if (isIncomplete()) {
-      if (!window.confirm("Einige Einträge sind noch nicht vollständig ausgefüllt. Möchtest du sie verwerfen und die Seite wechseln?")) {
-        return;
-      }
+      showConfirm(
+        "Unvollständige Daten",
+        "Einige Einträge sind noch nicht vollständig ausgefüllt. Möchtest du sie verwerfen und die Seite wechseln?",
+        () => {
+          setDarlehenRows((prev) =>
+            prev.filter((r) => r.name.trim() !== "" && r.geprueftVon.trim() !== "" && r.preis !== 0),
+          );
+          setAusgabenRows((prev) =>
+            prev.filter((r) => r.ausgabe.trim() !== "" && r.geprueftVon.trim() !== "" && r.preis !== 0),
+          );
+          setVerkaufRows((prev) =>
+            prev.filter((r) => r.produkt.trim() !== "" && r.geprueftVon.trim() !== "" && r.preis !== 0),
+          );
+          setActiveTab(newTab);
+          setCurrentPage(1);
+        },
+        "Wechseln"
+      );
+      return;
     }
 
     setDarlehenRows((prev) =>
@@ -626,9 +729,13 @@ export default function Home() {
       setDarlehenRows(importedDarlehen.sort((a, b) => b.id - a.id));
       setAusgabenRows(importedAusgaben.sort((a, b) => b.id - a.id));
       setVerkaufRows(importedVerkauf.sort((a, b) => b.id - a.id));
+      
+      // Update hasInitialized to true just in case it wasn't already, 
+      // ensuring the imported data gets saved to localStorage immediately via the effect
+      setHasInitialized(true);
     } catch (error) {
       console.error("Fehler beim Laden:", error);
-      alert("Fehler beim Lesen der Excel-Datei.");
+      showAlert("Fehler beim Import", "Die Excel-Datei konnte nicht gelesen werden. Bitte überprüfe das Format.");
     }
 
     e.target.value = "";
@@ -699,8 +806,13 @@ export default function Home() {
                   (max, r) => (r.id > max ? r.id : max),
                   0
                 );
-                if (id === currentMaxId && window.confirm("Möchtest du diesen Eintrag wirklich löschen?")) {
-                  setDarlehenRows((prev) => prev.filter((row) => row.id !== id));
+                if (id === currentMaxId) {
+                  showConfirm(
+                    "Eintrag löschen",
+                    "Möchtest du diesen Eintrag wirklich löschen?",
+                    () => setDarlehenRows((prev) => prev.filter((row) => row.id !== id)),
+                    "Löschen"
+                  );
                 }
               }}
               onUpdate={(id, field, value) =>
@@ -735,8 +847,13 @@ export default function Home() {
                   (max, r) => (max === 0 || r.id > max ? r.id : max),
                   0
                 );
-                if (id === currentMaxId && window.confirm("Möchtest du diesen Eintrag wirklich löschen?")) {
-                  setAusgabenRows((prev) => prev.filter((row) => row.id !== id));
+                if (id === currentMaxId) {
+                  showConfirm(
+                    "Eintrag löschen",
+                    "Möchtest du diesen Eintrag wirklich löschen?",
+                    () => setAusgabenRows((prev) => prev.filter((row) => row.id !== id)),
+                    "Löschen"
+                  );
                 }
               }}
               onUpdate={(id, field, value) =>
@@ -771,8 +888,13 @@ export default function Home() {
                   (max, r) => (r.id > max ? r.id : max),
                   0
                 );
-                if (id === currentMaxId && window.confirm("Möchtest du diesen Eintrag wirklich löschen?")) {
-                  setVerkaufRows((prev) => prev.filter((row) => row.id !== id));
+                if (id === currentMaxId) {
+                  showConfirm(
+                    "Eintrag löschen",
+                    "Möchtest du diesen Eintrag wirklich löschen?",
+                    () => setVerkaufRows((prev) => prev.filter((row) => row.id !== id)),
+                    "Löschen"
+                  );
                 }
               }}
               onUpdate={(id, field, value) =>
@@ -789,6 +911,15 @@ export default function Home() {
           </>
         )}
       </div>
+
+      <AlertModal
+        isOpen={alertConfig.isOpen}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onConfirm={alertConfig.onConfirm}
+        confirmLabel={alertConfig.confirmLabel}
+        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }
