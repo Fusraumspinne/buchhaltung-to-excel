@@ -195,7 +195,7 @@ export function DashboardAnalytics({ rows }: DashboardAnalyticsProps) {
 
       {!hasRows ? (
         <div className="bg-white border border-slate-200 rounded p-6 text-center text-xs text-slate-500">
-          Keine Daten vorhanden. Füge zuerst Eintraege im Kassenbuch hinzu.
+          Keine Daten vorhanden. Füge zuerst Einträge im Kassenbuch hinzu.
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">

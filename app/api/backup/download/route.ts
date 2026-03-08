@@ -3,6 +3,17 @@ import { NextRequest } from "next/server";
 import { isRequestAuthorized } from "@/lib/auth";
 import { assertBlobConfig, sanitizeBackupFilename, toBackupBlobPath } from "@/lib/blob-backups";
 
+function isBlobConnectionError(error: unknown) {
+  const message = String(error || "").toLowerCase();
+  return (
+    message.includes("fetch failed") ||
+    message.includes("econn") ||
+    message.includes("enotfound") ||
+    message.includes("etimedout") ||
+    message.includes("socket")
+  );
+}
+
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
@@ -35,6 +46,19 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error("Error downloading backup:", err);
+    if (isBlobConnectionError(err)) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          code: "BLOB_UNREACHABLE",
+          error: "Zu diesem Server kann keine Verbindung mehr aufgebaut werden.",
+        }),
+        {
+          status: 503,
+          headers: { "content-type": "application/json" },
+        },
+      );
+    }
     return new Response(String(err), { status: 500 });
   }
 }

@@ -19,7 +19,7 @@ export function AusgabenTable({ rows, globalMaxId, onAdd, onRemove, onUpdate }: 
               <th className="px-4 py-3 w-20">ID</th>
               <th className="px-4 py-3 w-32">Datum</th>
               <th className="px-4 py-3">Ausgabe</th>
-              <th className="px-4 py-3 w-28 text-right">Preis</th>
+              <th className="px-4 py-3 w-28 text-right">Gesamtbetrag</th>
               <th className="px-4 py-3">Beschreibung</th>
               <th className="px-4 py-3 w-44">Geprueft von</th>
               <th className="px-4 py-3 w-10 text-center" />

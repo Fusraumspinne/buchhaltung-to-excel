@@ -24,7 +24,7 @@ export function KassenbuchTable({ rows }: KassenbuchTableProps) {
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-6 text-xs text-slate-400 text-center">
-                  Noch keine Eintraege vorhanden.
+                  Noch keine Einträge vorhanden.
                 </td>
               </tr>
             ) : (

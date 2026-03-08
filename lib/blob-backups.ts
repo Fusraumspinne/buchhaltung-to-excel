@@ -1,4 +1,12 @@
 export const BACKUP_BLOB_PREFIX = "backups/";
+export const BACKUP_INDEX_BLOB_PATH = `${BACKUP_BLOB_PREFIX}index.json`;
+
+export interface BackupIndexEntry {
+  name: string;
+  path: string;
+  date: string;
+  size: number;
+}
 
 export function sanitizeBackupFilename(filename: string) {
   return filename.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -21,4 +29,22 @@ export function assertBlobConfig() {
       "BLOB_READ_WRITE_TOKEN fehlt. Verbinde das Projekt mit Vercel Blob und fuehre lokal `vercel env pull .env.local` aus.",
     );
   }
+}
+
+export function normalizeBackupIndexEntry(entry: Partial<BackupIndexEntry>): BackupIndexEntry | null {
+  const name = sanitizeBackupFilename(String(entry.name || ""));
+  const path = toBackupBlobPath(name);
+  const date = String(entry.date || "");
+  const size = Number(entry.size || 0);
+
+  if (!name || !date || !Number.isFinite(size) || size < 0) {
+    return null;
+  }
+
+  return {
+    name,
+    path,
+    date,
+    size,
+  };
 }

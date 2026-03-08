@@ -17,6 +17,7 @@ import { BackupList } from "@/components/backup-list";
 import {
   AusgabenEntry,
   DarlehenEntry,
+  DarlehenKaeuferAnteil,
   KassenbuchEntry,
   TabKey,
   VerkaufEntry,
@@ -138,6 +139,10 @@ function resolveColumnIndex(headerMap: Map<string, number>, aliases: string[], f
   return fallback;
 }
 
+function getDarlehenAnteileGesamt(row: DarlehenEntry) {
+  return row.kaeuferAnteile.reduce((sum, item) => sum + Math.max(0, Number(item.anteil) || 0), 0);
+}
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
   const [darlehenRows, setDarlehenRows] = useState<DarlehenEntry[]>([]);
@@ -205,7 +210,7 @@ export default function Home() {
           "Letzten Stand laden?",
           `Es wurde ein gespeicherter Stand vom ${date} gefunden. Möchtest du diesen laden?`,
           () => {
-            setDarlehenRows(parsed.darlehen || []);
+            setDarlehenRows((parsed.darlehen || []).map((row: Partial<DarlehenEntry>) => normalizeDarlehenEntry(row)));
             setAusgabenRows(parsed.ausgaben || []);
             setVerkaufRows(parsed.verkauf || []);
             setHasInitialized(true);
@@ -237,7 +242,7 @@ export default function Home() {
     const isIncomplete = () => {
       switch (activeTab) {
         case "darlehen":
-          return darlehenRows.some(r => r.name.trim() === "" || r.geprueftVon.trim() === "" || r.preis === 0);
+          return darlehenRows.some((r) => !isValidDarlehenRow(r));
         case "ausgaben":
           return ausgabenRows.some(r => r.ausgabe.trim() === "" || r.geprueftVon.trim() === "" || r.preis === 0);
         case "verkauf":
@@ -252,9 +257,7 @@ export default function Home() {
         "Unvollständige Daten",
         "Einige Einträge sind noch nicht vollständig ausgefüllt. Möchtest du sie verwerfen und die Seite wechseln?",
         () => {
-          setDarlehenRows((prev) =>
-            prev.filter((r) => r.name.trim() !== "" && r.geprueftVon.trim() !== "" && r.preis !== 0),
-          );
+          setDarlehenRows((prev) => prev.filter((r) => isValidDarlehenRow(r)));
           setAusgabenRows((prev) =>
             prev.filter((r) => r.ausgabe.trim() !== "" && r.geprueftVon.trim() !== "" && r.preis !== 0),
           );
@@ -269,9 +272,7 @@ export default function Home() {
       return;
     }
 
-    setDarlehenRows((prev) =>
-      prev.filter((r) => r.name.trim() !== "" && r.geprueftVon.trim() !== "" && r.preis !== 0),
-    );
+    setDarlehenRows((prev) => prev.filter((r) => isValidDarlehenRow(r)));
     setAusgabenRows((prev) =>
       prev.filter((r) => r.ausgabe.trim() !== "" && r.geprueftVon.trim() !== "" && r.preis !== 0),
     );
@@ -282,9 +283,7 @@ export default function Home() {
     setCurrentPage(1);
   };
 
-  const hasEmptyDarlehen = darlehenRows.some(
-    (r) => r.name.trim() === "" || r.geprueftVon.trim() === "" || r.preis === 0,
-  );
+  const hasEmptyDarlehen = darlehenRows.some((r) => !isValidDarlehenRow(r));
   const hasEmptyAusgabe = ausgabenRows.some(
     (r) => r.ausgabe.trim() === "" || r.geprueftVon.trim() === "" || r.preis === 0,
   );
@@ -312,12 +311,74 @@ export default function Home() {
         id: getNextId(prev, ausgabenRows, verkaufRows),
         datum: today(),
         name: "",
-        anzahl: 1,
         preis: 0,
         geprueftVon: "",
+        kaeuferAnteile: [createDefaultKaeufer("", 1)],
       },
       ...prev,
     ]);
+  };
+
+  const addDarlehenKaeufer = (rowId: number) => {
+    setDarlehenRows((prev) =>
+      prev.map((row) =>
+        row.id === rowId
+          ? row.kaeuferAnteile.every((item) => item.kaeufer.trim() !== "" && item.anteil > 0)
+            ? { ...row, kaeuferAnteile: [...row.kaeuferAnteile, createDefaultKaeufer("", 0)] }
+            : row
+          : row,
+      ),
+    );
+  };
+
+  const removeDarlehenKaeufer = (rowId: number, anteilId: string) => {
+    showConfirm(
+      "Käufer entfernen",
+      "Möchtest du diesen Käufer wirklich aus dem Eintrag entfernen?",
+      () => {
+        setDarlehenRows((prev) =>
+          prev.map((row) => {
+            if (row.id !== rowId) {
+              return row;
+            }
+            const nextAnteile = row.kaeuferAnteile.filter((item) => item.id !== anteilId);
+            return {
+              ...row,
+              kaeuferAnteile: nextAnteile.length > 0 ? nextAnteile : [createDefaultKaeufer("", 1)],
+            };
+          }),
+        );
+      },
+      "Entfernen"
+    );
+  };
+
+  const updateDarlehenKaeufer = (
+    rowId: number,
+    anteilId: string,
+    field: "kaeufer" | "anteil",
+    value: string | number,
+  ) => {
+    setDarlehenRows((prev) =>
+      prev.map((row) => {
+        if (row.id !== rowId) {
+          return row;
+        }
+
+        return {
+          ...row,
+          kaeuferAnteile: row.kaeuferAnteile.map((item) =>
+            item.id === anteilId
+              ? {
+                  ...item,
+                  [field]:
+                    field === "anteil" ? Math.max(0, Number(value) || 0) : String(value),
+                }
+              : item,
+          ),
+        };
+      }),
+    );
   };
 
   const addAusgabe = () => {
@@ -351,7 +412,7 @@ export default function Home() {
   };
 
   const totalDarlehen = useMemo(
-    () => darlehenRows.reduce((sum, row) => sum + row.preis * row.anzahl, 0),
+    () => darlehenRows.reduce((sum, row) => sum + row.preis, 0),
     [darlehenRows],
   );
   const totalAusgaben = useMemo(
@@ -369,9 +430,9 @@ export default function Home() {
       id: row.id,
       datum: row.datum,
       typ: "Darlehen" as const,
-      einnahmen: row.preis * row.anzahl,
+      einnahmen: row.preis,
       ausgaben: 0,
-      saldo: row.preis * row.anzahl,
+      saldo: row.preis,
       geprueftVon: row.geprueftVon,
     }));
 
@@ -437,20 +498,21 @@ export default function Home() {
     darlehenSheet.columns = [
       { header: "ID", key: "id", width: 10 },
       { header: "Datum", key: "datum", width: 14 },
-      { header: "Name", key: "name", width: 24 },
-      { header: "Anzahl", key: "anzahl", width: 12 },
-      { header: "Preis", key: "preis", width: 14 },
+      { header: "Kaeuferanteile", key: "kaeuferAnteile", width: 38 },
+      { header: "Gesamtbetrag", key: "preis", width: 16 },
       { header: "Geprueft von", key: "geprueftVon", width: 20 },
     ];
     [...darlehenRows].sort((a, b) => a.id - b.id).forEach((row) => {
-      darlehenSheet.addRow(row);
+      darlehenSheet.addRow({
+        ...row,
+        kaeuferAnteile: serializeKaeuferAnteile(row.kaeuferAnteile),
+      });
     });
     
     const darlehenTotalRowNum = darlehenRows.length + 3;
     const darlehenTotalRow = darlehenSheet.addRow({
       id: "GESAMT",
-      anzahl: { formula: `SUM(D3:D${darlehenTotalRowNum - 1})` },
-      preis: { formula: `SUMPRODUCT(D3:D${darlehenTotalRowNum - 1},E3:E${darlehenTotalRowNum - 1})` },
+      preis: { formula: `SUM(D3:D${darlehenTotalRowNum - 1})` },
     });
     darlehenTotalRow.font = { bold: true };
 
@@ -510,7 +572,7 @@ export default function Home() {
         if (rowNum <= 2) return;
         row.eachCell((cell, colNum) => {
           const header = sheet.getRow(2).getCell(colNum).text;
-          if (["Preis", "Einnahmen", "Ausgaben", "Saldo"].includes(header)) {
+          if (["Preis", "Gesamtbetrag", "Einnahmen", "Ausgaben", "Saldo"].includes(header)) {
             cell.numFmt = "#,##0.00";
           }
         });
@@ -532,7 +594,12 @@ export default function Home() {
           body: buffer,
         });
         if (!resp.ok) {
-          console.warn("Backup upload failed", await resp.text());
+          const data = await resp.json().catch(() => null);
+          if (data?.code === "BLOB_UNREACHABLE") {
+            console.warn("Backup upload skipped: blob service unreachable");
+          } else {
+            console.warn("Backup upload failed", data || "unknown error");
+          }
         }
       } catch (err) {
         console.warn("Backup upload error", err);
@@ -571,6 +638,31 @@ export default function Home() {
     const ausgabenSheet = findSheet(workbook, "Ausgaben");
     const verkaufSheet = findSheet(workbook, "Verkauf");
 
+    const darlehenHeaderMap = getHeaderColumnMap(darlehenSheet);
+    const darlehenHasNameColumn =
+      darlehenHeaderMap.has(normalizeHeaderLabel("Darlehen")) ||
+      darlehenHeaderMap.has(normalizeHeaderLabel("Name"));
+    const darlehenHasAnzahlColumn = darlehenHeaderMap.has(normalizeHeaderLabel("Anzahl"));
+    const darlehenColumns = {
+      id: resolveColumnIndex(darlehenHeaderMap, ["ID"], 1),
+      datum: resolveColumnIndex(darlehenHeaderMap, ["Datum"], 2),
+      name: darlehenHasNameColumn
+        ? resolveColumnIndex(darlehenHeaderMap, ["Darlehen", "Name"], 3)
+        : -1,
+      preis: resolveColumnIndex(darlehenHeaderMap, ["Gesamtbetrag", "Preis"], 4),
+      anzahl: darlehenHasAnzahlColumn ? resolveColumnIndex(darlehenHeaderMap, ["Anzahl"], 4) : -1,
+      kaeuferAnteile: resolveColumnIndex(
+        darlehenHeaderMap,
+        ["Kaeuferanteile", "Kauferanteile", "Anteile", "BuyerShares"],
+        darlehenHasNameColumn ? 5 : 3,
+      ),
+      geprueftVon: resolveColumnIndex(
+        darlehenHeaderMap,
+        ["Geprueft von", "Gepruft von", "Pruefer", "Prufer"],
+        darlehenHasNameColumn ? 6 : 5,
+      ),
+    };
+
     const ausgabenHeaderMap = getHeaderColumnMap(ausgabenSheet);
     const ausgabenHasDatum = ausgabenHeaderMap.has(normalizeHeaderLabel("Datum"));
     const ausgabenColumns = {
@@ -595,16 +687,46 @@ export default function Home() {
 
     darlehenSheet?.eachRow((row, rowNumber) => {
       if (rowNumber <= 2) return;
-      if (isMetaRowLabel(row.getCell(1).value) || isEffectivelyEmpty([row.getCell(1).value, row.getCell(2).value, row.getCell(3).value, row.getCell(4).value, row.getCell(5).value, row.getCell(6).value])) return;
-      const entry: DarlehenEntry = {
-        id: readOrCreateId(row.getCell(1).value),
-        datum: parseCellText(row.getCell(2).value) || today(),
-        name: parseCellText(row.getCell(3).value),
-        anzahl: Math.max(0, Math.floor(parseCellNumber(row.getCell(4).value))),
-        preis: parseCellNumber(row.getCell(5).value),
-        geprueftVon: parseCellText(row.getCell(6).value),
-      };
-      if (entry.name.trim() !== "" || entry.anzahl > 0 || entry.preis !== 0 || entry.geprueftVon.trim() !== "") {
+
+      const darlehenCellValues = [
+        row.getCell(darlehenColumns.id).value,
+        row.getCell(darlehenColumns.datum).value,
+        darlehenColumns.name > 0 ? row.getCell(darlehenColumns.name).value : null,
+        row.getCell(darlehenColumns.preis).value,
+        row.getCell(darlehenColumns.kaeuferAnteile).value,
+        row.getCell(darlehenColumns.geprueftVon).value,
+      ];
+
+      if (isMetaRowLabel(row.getCell(darlehenColumns.id).value) || isEffectivelyEmpty(darlehenCellValues)) return;
+
+      const oldAnzahl =
+        darlehenColumns.anzahl > 0
+          ? Math.max(0, Math.floor(parseCellNumber(row.getCell(darlehenColumns.anzahl).value)))
+          : 0;
+      const preisRaw = parseCellNumber(row.getCell(darlehenColumns.preis).value);
+      const preis = preisRaw;
+      const name =
+        darlehenColumns.name > 0 ? parseCellText(row.getCell(darlehenColumns.name).value) : "";
+      const kaeuferText = parseCellText(row.getCell(darlehenColumns.kaeuferAnteile).value);
+
+      const entry = normalizeDarlehenEntry({
+        id: readOrCreateId(row.getCell(darlehenColumns.id).value),
+        datum: parseCellText(row.getCell(darlehenColumns.datum).value) || today(),
+        name,
+        preis,
+        geprueftVon: parseCellText(row.getCell(darlehenColumns.geprueftVon).value),
+        kaeuferAnteile:
+          kaeuferText.trim() !== ""
+            ? parseKaeuferAnteile(kaeuferText, name)
+            : [createDefaultKaeufer(name, oldAnzahl > 0 ? oldAnzahl : 1)],
+      });
+
+      if (
+        entry.name.trim() !== "" ||
+        entry.preis !== 0 ||
+        entry.geprueftVon.trim() !== "" ||
+        entry.kaeuferAnteile.some((item) => item.kaeufer.trim() !== "" || item.anteil > 0)
+      ) {
         importedDarlehen.push(entry);
       }
     });
@@ -669,7 +791,17 @@ export default function Home() {
   const handleRestoreBackup = async (filename: string) => {
     try {
       const resp = await fetch(`/api/backup/download?filename=${encodeURIComponent(filename)}`);
-      if (!resp.ok) throw new Error("Download failed");
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => null);
+        if (data?.code === "BLOB_UNREACHABLE") {
+          showAlert(
+            "Backup-Server nicht erreichbar",
+            "Zu diesem Server kann keine Verbindung mehr aufgebaut werden. Die Anwendung funktioniert weiter, aber Backups sind gerade nicht verfuegbar.",
+          );
+          return;
+        }
+        throw new Error("Download failed");
+      }
       const buffer = await resp.arrayBuffer();
       
       // Automatischer Download im Browser
@@ -761,9 +893,19 @@ export default function Home() {
               }}
               onUpdate={(id, field, value) =>
                 setDarlehenRows((prev) =>
-                  prev.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
+                  prev.map((row) =>
+                    row.id === id
+                      ? {
+                          ...row,
+                          [field]: field === "preis" ? Math.max(0, Number(value) || 0) : value,
+                        }
+                      : row,
+                  ),
                 )
               }
+              onAddKaeufer={addDarlehenKaeufer}
+              onRemoveKaeufer={removeDarlehenKaeufer}
+              onUpdateKaeufer={updateDarlehenKaeufer}
             />
             <Pagination 
               currentPage={currentPage}
@@ -863,8 +1005,97 @@ export default function Home() {
         message={alertConfig.message}
         onConfirm={alertConfig.onConfirm}
         confirmLabel={alertConfig.confirmLabel}
-        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+        onClose={() => {
+          setAlertConfig((prev) => ({ ...prev, isOpen: false }));
+          if (!hasInitialized && alertConfig.title === "Letzten Stand laden?") {
+            setHasInitialized(true);
+          }
+        }}
       />
     </div>
+  );
+}
+
+function createAnteilId() {
+  return `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createDefaultKaeufer(kaeufer = "", anteil = 1): DarlehenKaeuferAnteil {
+  return {
+    id: createAnteilId(),
+    kaeufer,
+    anteil,
+  };
+}
+
+function parseKaeuferAnteile(text: string, fallbackName = ""): DarlehenKaeuferAnteil[] {
+  const raw = text.trim();
+  if (!raw) {
+    return [createDefaultKaeufer(fallbackName, 1)];
+  }
+
+  const parts = raw
+    .split(/[;\n]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const parsed = parts
+    .map((part) => {
+      const match = part.match(/^(.*?)\s*(?:\(([-\d.,]+)\s*%?\)|:\s*([-\d.,]+)\s*%?)?$/);
+      if (!match) {
+        return createDefaultKaeufer(part, 0);
+      }
+
+      const kaeufer = (match[1] || "").trim();
+      const anteilRaw = (match[2] || match[3] || "0").replace(",", ".");
+      const anteil = Number.isFinite(Number(anteilRaw)) ? Number(anteilRaw) : 0;
+
+      return createDefaultKaeufer(kaeufer, Math.max(0, anteil));
+    })
+    .filter((item) => item.kaeufer !== "" || item.anteil > 0);
+
+  if (parsed.length > 0) {
+    return parsed;
+  }
+
+  return [createDefaultKaeufer(fallbackName, 1)];
+}
+
+function serializeKaeuferAnteile(anteile: DarlehenKaeuferAnteil[]) {
+  if (!anteile || anteile.length === 0) return "";
+  const parts = anteile.map((item) => {
+    const name = item.kaeufer || "Unbekannt";
+    const anteilNum = Number(item.anteil) || 0;
+    const formatted = Number.isInteger(anteilNum) ? String(anteilNum) : String(anteilNum);
+    return `${name} (${formatted})`;
+  });
+  return parts.join("; ");
+}
+
+function normalizeDarlehenEntry(row: Partial<DarlehenEntry>): DarlehenEntry {
+  const anteile = Array.isArray(row.kaeuferAnteile)
+    ? row.kaeuferAnteile.map((item) => ({
+        id: item.id || createAnteilId(),
+        kaeufer: item.kaeufer || "",
+        anteil: Number.isFinite(Number(item.anteil)) ? Number(item.anteil) : 0,
+      }))
+    : [];
+
+  return {
+    id: Number(row.id) || 0,
+    datum: row.datum || today(),
+    name: row.name || "",
+    preis: Number.isFinite(Number(row.preis)) ? Number(row.preis) : 0,
+    geprueftVon: row.geprueftVon || "",
+    kaeuferAnteile: anteile.length > 0 ? anteile : [createDefaultKaeufer(row.name || "", 1)],
+  };
+}
+
+function isValidDarlehenRow(row: DarlehenEntry) {
+  return (
+    row.geprueftVon.trim() !== "" &&
+    row.preis !== 0 &&
+    row.kaeuferAnteile.length > 0 &&
+    row.kaeuferAnteile.every((item) => item.kaeufer.trim() !== "" && item.anteil > 0)
   );
 }

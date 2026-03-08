@@ -1,12 +1,19 @@
 export type TabKey = "dashboard" | "kassenbuch" | "darlehen" | "ausgaben" | "verkauf" | "backups";
 
+export interface DarlehenKaeuferAnteil {
+  id: string;
+  kaeufer: string;
+  anteil: number;
+}
+
 export interface DarlehenEntry {
   id: number;
   datum: string;
   name: string;
-  anzahl: number;
   preis: number;
   geprueftVon: string;
+  kaeuferAnteile: DarlehenKaeuferAnteil[];
+  anzahl?: number;
 }
 
 export interface AusgabenEntry {
