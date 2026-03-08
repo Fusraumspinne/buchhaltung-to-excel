@@ -152,7 +152,6 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 10;
 
-  // Persistence Logic
   const [alertConfig, setAlertConfig] = useState<{
     isOpen: boolean;
     title: string;
@@ -201,14 +200,12 @@ export default function Home() {
 
   const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Persistence Logic
   useEffect(() => {
     const savedData = localStorage.getItem("buchhaltung_data");
     if (savedData) {
       try {
         const parsed = JSON.parse(savedData);
         
-        // Prüfen ob mindestens ein Eintrag vorhanden ist
         const hasEntries = 
           (parsed.darlehen?.length > 0) || 
           (parsed.ausgaben?.length > 0) || 
@@ -250,6 +247,13 @@ export default function Home() {
   useEffect(() => {
     if (!hasInitialized) return;
     
+    const hasAnyEntries = 
+      darlehenRows.length > 0 || 
+      ausgabenRows.length > 0 || 
+      verkaufRows.length > 0;
+
+    if (!hasAnyEntries) return;
+
     const dataToSave = {
       darlehen: darlehenRows,
       ausgaben: ausgabenRows,
@@ -505,7 +509,7 @@ export default function Home() {
       { header: "Einnahmen", key: "einnahmen", width: 14 },
       { header: "Ausgaben", key: "ausgaben", width: 14 },
       { header: "Saldo", key: "saldo", width: 14 },
-      { header: "Geprueft von", key: "geprueftVon", width: 20 },
+      { header: "Geprüft von", key: "geprueftVon", width: 20 },
     ];
     kassenbuchRows.forEach((row) => {
       kassenbuchSheet.addRow(row);
@@ -524,9 +528,9 @@ export default function Home() {
     darlehenSheet.columns = [
       { header: "ID", key: "id", width: 10 },
       { header: "Datum", key: "datum", width: 14 },
-      { header: "Kaeuferanteile", key: "kaeuferAnteile", width: 38 },
+      { header: "Käuferanteile", key: "kaeuferAnteile", width: 38 },
       { header: "Gesamtbetrag", key: "preis", width: 16 },
-      { header: "Geprueft von", key: "geprueftVon", width: 20 },
+      { header: "Geprüft von", key: "geprueftVon", width: 20 },
     ];
     [...darlehenRows].sort((a, b) => a.id - b.id).forEach((row) => {
       darlehenSheet.addRow({
@@ -549,7 +553,7 @@ export default function Home() {
       { header: "Ausgabe", key: "ausgabe", width: 24 },
       { header: "Preis", key: "preis", width: 14 },
       { header: "Beschreibung", key: "beschreibung", width: 34 },
-      { header: "Geprueft von", key: "geprueftVon", width: 20 },
+      { header: "Geprüft von", key: "geprueftVon", width: 20 },
     ];
     [...ausgabenRows].sort((a, b) => a.id - b.id).forEach((row) => {
       ausgabenSheet.addRow(row);
@@ -569,7 +573,7 @@ export default function Home() {
       { header: "Produkt", key: "produkt", width: 24 },
       { header: "Preis", key: "preis", width: 14 },
       { header: "Beschreibung", key: "beschreibung", width: 34 },
-      { header: "Geprueft von", key: "geprueftVon", width: 20 },
+      { header: "Geprüft von", key: "geprueftVon", width: 20 },
     ];
     [...verkaufRows].sort((a, b) => a.id - b.id).forEach((row) => {
       verkaufSheet.addRow(row);
@@ -584,7 +588,7 @@ export default function Home() {
 
     const now = new Date();
     const lastEdited = now.toLocaleDateString("de-DE") + " " + now.toLocaleTimeString("de-DE", { hour: '2-digit', minute: '2-digit' });
-    const metaText = `Buchhaltung von: Riesener Fashion Company - Zuletzt Bearbeitet: ${lastEdited} - Hinweis: Das Bearbeiten der Excel-Datei kann zur Korruption führen und somit nicht mehr importiert werden, einzelne Werte in den Einträgen können ohne Bedenken geändert werden, nur sollten Felder nicht leer bleiben.`;
+    const metaText = `Buchhaltung von: Riesener Fashion Company - Erstellt: ${lastEdited} - Hinweis: Das Bearbeiten der Excel-Datei kann zur Korruption führen und somit nicht mehr importiert werden, einzelne Werte in den Einträgen können ohne Bedenken geändert werden, nur sollten Felder nicht leer bleiben.`;
 
     [kassenbuchSheet, darlehenSheet, ausgabenSheet, verkaufSheet].forEach((sheet) => {
       sheet.insertRow(1, [metaText]);
@@ -840,7 +844,6 @@ export default function Home() {
       }
       const buffer = await resp.arrayBuffer();
       
-      // Automatischer Download im Browser
       saveAs(new Blob([buffer]), filename);
       
       const workbook = new ExcelJS.Workbook();
