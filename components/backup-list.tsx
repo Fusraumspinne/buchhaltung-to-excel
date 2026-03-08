@@ -40,7 +40,7 @@ export function BackupList({ onRestore }: BackupListProps) {
       } else {
         const data = await resp.json().catch(() => null);
         if (data?.code === "BLOB_UNREACHABLE") {
-          setErrorMessage("Zu diesem Server kann keine Verbindung mehr aufgebaut werden. Backups sind aktuell nicht verfuegbar.");
+          setErrorMessage("Zu diesem Server kann keine Verbindung mehr aufgebaut werden. Backups sind aktuell nicht verfügbar.");
           setBackups([]);
           setTotal(0);
         } else {
@@ -49,7 +49,7 @@ export function BackupList({ onRestore }: BackupListProps) {
       }
     } catch (err) {
       console.error("Failed to load backups", err);
-      setErrorMessage("Zu diesem Server kann keine Verbindung mehr aufgebaut werden. Backups sind aktuell nicht verfuegbar.");
+      setErrorMessage("Zu diesem Server kann keine Verbindung mehr aufgebaut werden. Backups sind aktuell nicht verfügbar.");
       setBackups([]);
       setTotal(0);
     } finally {
@@ -78,7 +78,7 @@ export function BackupList({ onRestore }: BackupListProps) {
       if (!resp.ok) {
         const data = await resp.json().catch(() => null);
         if (data?.code === "BLOB_UNREACHABLE") {
-          setErrorMessage("Zu diesem Server kann keine Verbindung mehr aufgebaut werden. Backups sind aktuell nicht verfuegbar.");
+          setErrorMessage("Zu diesem Server kann keine Verbindung mehr aufgebaut werden. Backups sind aktuell nicht verfügbar.");
         } else {
           setErrorMessage("Das Backup konnte nicht geloescht werden.");
         }
@@ -90,7 +90,7 @@ export function BackupList({ onRestore }: BackupListProps) {
       await fetchBackups();
     } catch (err) {
       console.error("Failed to delete backup", err);
-      setErrorMessage("Zu diesem Server kann keine Verbindung mehr aufgebaut werden. Backups sind aktuell nicht verfuegbar.");
+      setErrorMessage("Zu diesem Server kann keine Verbindung mehr aufgebaut werden. Backups sind aktuell nicht verfügbar.");
     } finally {
       setIsDeleting(false);
       setDeletingName(null);

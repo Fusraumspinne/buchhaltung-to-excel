@@ -37,12 +37,14 @@ export function DarlehenTable({
               <th className="px-4 py-3 w-32">Datum</th>
               <th className="px-4 py-3 min-w-85">Käufer und Anzahl</th>
               <th className="px-4 py-3 w-32 text-right">Gesamtbetrag</th>
-              <th className="px-4 py-3 w-44">Geprueft von</th>
+              <th className="px-4 py-3 w-44">Geprüft von</th>
               <th className="px-4 py-3 w-10 text-center" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((row) => (
+            {rows.map((row) => {
+              const isEditable = row.id === globalMaxId;
+              return (
               <tr key={row.id} className="hover:bg-slate-50/40 transition-colors">
                 <td className="px-4 py-3 text-xs font-bold text-slate-600 align-top">#{row.id}</td>
                 <td className="px-2 py-2 align-top">
@@ -50,6 +52,7 @@ export function DarlehenTable({
                     type="date"
                     required
                     value={row.datum}
+                    disabled={!isEditable}
                     onChange={(e) => onUpdate(row.id, "datum", e.target.value)}
                     className="w-full bg-transparent p-1 text-xs border border-transparent focus:border-slate-100 rounded outline-none cursor-pointer"
                   />
@@ -62,36 +65,42 @@ export function DarlehenTable({
                           type="text"
                           required
                           value={anteil.kaeufer}
+                          disabled={!isEditable}
                           placeholder="Käufername"
                           onChange={(e) => onUpdateKaeufer(row.id, anteil.id, "kaeufer", e.target.value)}
-                          className="flex-1 bg-transparent p-1 text-xs border border-transparent focus:border-slate-100 rounded outline-none"
+                          className="flex-1 min-w-[150px] bg-transparent p-1 text-xs border border-transparent focus:border-slate-100 rounded outline-none"
                         />
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          required
-                          value={anteil.anteil === 0 ? "" : anteil.anteil}
-                          placeholder="Anteil"
-                          onChange={(e) =>
-                            onUpdateKaeufer(
-                              row.id,
-                              anteil.id,
-                              "anteil",
-                              e.target.value === "" ? 0 : Number(e.target.value),
-                            )
-                          }
-                          className="w-20 bg-transparent p-1 text-xs text-right border border-transparent focus:border-slate-100 rounded outline-none"
-                        />
-                        <span className="text-[11px] text-slate-400">Anzahl</span>
-                        {row.kaeuferAnteile.length > 1 && (
-                          <button
-                            onClick={() => onRemoveKaeufer(row.id, anteil.id)}
-                            className="text-slate-300 hover:text-red-500 transition-colors p-1 cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2 w-28 shrink-0">
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            required
+                            disabled={!isEditable}
+                            value={anteil.anteil === 0 ? "" : anteil.anteil}
+                            placeholder="Anteil"
+                            onChange={(e) =>
+                              onUpdateKaeufer(
+                                row.id,
+                                anteil.id,
+                                "anteil",
+                                e.target.value === "" ? 0 : Number(e.target.value),
+                              )
+                            }
+                            className="w-full bg-transparent p-1 text-xs text-right border border-transparent focus:border-slate-100 rounded outline-none"
+                          />
+                          <span className="text-[11px] text-slate-400">Anzahl</span>
+                        </div>
+                        <div className="w-6 flex justify-center">
+                          {row.kaeuferAnteile.length > 1 && isEditable && (
+                            <button
+                              onClick={() => onRemoveKaeufer(row.id, anteil.id)}
+                              className="text-slate-300 hover:text-red-500 transition-colors p-1 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                     <div className="flex items-center justify-between">
@@ -99,6 +108,7 @@ export function DarlehenTable({
                         const canAddKaeufer = row.kaeuferAnteile.every(
                           (item) => item.kaeufer.trim() !== "" && item.anteil > 0,
                         );
+                        if (!isEditable) return null;
                         return (
                           <button
                             onClick={() => onAddKaeufer(row.id)}
@@ -117,6 +127,7 @@ export function DarlehenTable({
                     type="number"
                     step="0.01"
                     required
+                    disabled={!isEditable}
                     value={row.preis === 0 ? "" : row.preis}
                     placeholder="0.00"
                     onChange={(e) => onUpdate(row.id, "preis", e.target.value === "" ? 0 : Number(e.target.value))}
@@ -127,8 +138,9 @@ export function DarlehenTable({
                   <input
                     type="text"
                     required
+                    disabled={!isEditable}
                     value={row.geprueftVon}
-                    placeholder="Pruefer"
+                    placeholder="Prüfer"
                     onChange={(e) => onUpdate(row.id, "geprueftVon", e.target.value)}
                     className="w-full bg-transparent p-1 text-xs border border-transparent focus:border-slate-100 rounded outline-none"
                   />
@@ -144,7 +156,8 @@ export function DarlehenTable({
                   )}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -156,7 +169,7 @@ export function DarlehenTable({
           <div className="bg-slate-100 group-hover:bg-slate-200 p-1 rounded transition-colors">
             <Plus className="w-3 h-3" />
           </div>
-          Hinzufuegen
+          Hinzufügen
         </button>
       </div>
     </div>

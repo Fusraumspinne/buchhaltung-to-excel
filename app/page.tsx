@@ -325,6 +325,11 @@ export default function Home() {
     return ids.length > 0 ? Math.max(...ids) + 1 : 1;
   };
 
+  const globalMaxId = useMemo(() => {
+    const ids = [...darlehenRows, ...ausgabenRows, ...verkaufRows].map((row) => row.id);
+    return ids.length > 0 ? Math.max(...ids) : 0;
+  }, [darlehenRows, ausgabenRows, verkaufRows]);
+
   const addDarlehen = () => {
     if (hasEmptyDarlehen) return;
     setDarlehenRows((prev) => [
@@ -343,7 +348,7 @@ export default function Home() {
   const addDarlehenKaeufer = (rowId: number) => {
     setDarlehenRows((prev) =>
       prev.map((row) =>
-        row.id === rowId
+        row.id === rowId && row.id === globalMaxId
           ? row.kaeuferAnteile.every((item) => item.kaeufer.trim() !== "" && item.anteil > 0)
             ? { ...row, kaeuferAnteile: [...row.kaeuferAnteile, createDefaultKaeufer("", 0)] }
             : row
@@ -359,7 +364,7 @@ export default function Home() {
       () => {
         setDarlehenRows((prev) =>
           prev.map((row) => {
-            if (row.id !== rowId) {
+            if (row.id !== rowId || row.id !== globalMaxId) {
               return row;
             }
             const nextAnteile = row.kaeuferAnteile.filter((item) => item.id !== anteilId);
@@ -382,7 +387,7 @@ export default function Home() {
   ) => {
     setDarlehenRows((prev) =>
       prev.map((row) => {
-        if (row.id !== rowId) {
+        if (row.id !== rowId || row.id !== globalMaxId) {
           return row;
         }
 
@@ -905,22 +910,13 @@ export default function Home() {
           <>
             <DarlehenTable
               rows={darlehenRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)}
-              globalMaxId={
-                [...darlehenRows, ...ausgabenRows, ...verkaufRows].reduce(
-                  (max, r) => (r.id > max ? r.id : max),
-                  0
-                )
-              }
+              globalMaxId={globalMaxId}
               onAdd={() => {
                 addDarlehen();
                 setCurrentPage(1);
               }}
               onRemove={(id) => {
-                const currentMaxId = [...darlehenRows, ...ausgabenRows, ...verkaufRows].reduce(
-                  (max, r) => (r.id > max ? r.id : max),
-                  0
-                );
-                if (id === currentMaxId) {
+                if (id === globalMaxId) {
                   showConfirm(
                     "Eintrag löschen",
                     "Möchtest du diesen Eintrag wirklich löschen?",
@@ -932,7 +928,7 @@ export default function Home() {
               onUpdate={(id, field, value) =>
                 setDarlehenRows((prev) =>
                   prev.map((row) =>
-                    row.id === id
+                    row.id === id && row.id === globalMaxId
                       ? {
                           ...row,
                           [field]: field === "preis" ? Math.max(0, Number(value) || 0) : value,
@@ -956,22 +952,13 @@ export default function Home() {
           <>
             <AusgabenTable
               rows={ausgabenRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)}
-              globalMaxId={
-                [...darlehenRows, ...ausgabenRows, ...verkaufRows].reduce(
-                  (max, r) => (r.id > max ? r.id : max),
-                  0
-                )
-              }
+              globalMaxId={globalMaxId}
               onAdd={() => {
                 addAusgabe();
                 setCurrentPage(1);
               }}
               onRemove={(id) => {
-                const currentMaxId = [...darlehenRows, ...ausgabenRows, ...verkaufRows].reduce(
-                  (max, r) => (max === 0 || r.id > max ? r.id : max),
-                  0
-                );
-                if (id === currentMaxId) {
+                if (id === globalMaxId) {
                   showConfirm(
                     "Eintrag löschen",
                     "Möchtest du diesen Eintrag wirklich löschen?",
@@ -982,7 +969,7 @@ export default function Home() {
               }}
               onUpdate={(id, field, value) =>
                 setAusgabenRows((prev) =>
-                  prev.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
+                  prev.map((row) => (row.id === id && row.id === globalMaxId ? { ...row, [field]: value } : row)),
                 )
               }
             />
@@ -997,22 +984,13 @@ export default function Home() {
           <>
             <VerkaufTable
               rows={verkaufRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)}
-              globalMaxId={
-                [...darlehenRows, ...ausgabenRows, ...verkaufRows].reduce(
-                  (max, r) => (r.id > max ? r.id : max),
-                  0
-                )
-              }
+              globalMaxId={globalMaxId}
               onAdd={() => {
                 addVerkauf();
                 setCurrentPage(1);
               }}
               onRemove={(id) => {
-                const currentMaxId = [...darlehenRows, ...ausgabenRows, ...verkaufRows].reduce(
-                  (max, r) => (r.id > max ? r.id : max),
-                  0
-                );
-                if (id === currentMaxId) {
+                if (id === globalMaxId) {
                   showConfirm(
                     "Eintrag löschen",
                     "Möchtest du diesen Eintrag wirklich löschen?",
@@ -1023,7 +1001,7 @@ export default function Home() {
               }}
               onUpdate={(id, field, value) =>
                 setVerkaufRows((prev) =>
-                  prev.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
+                  prev.map((row) => (row.id === id && row.id === globalMaxId ? { ...row, [field]: value } : row)),
                 )
               }
             />

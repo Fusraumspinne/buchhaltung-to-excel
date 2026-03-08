@@ -17,7 +17,7 @@ export function KassenbuchTable({ rows }: KassenbuchTableProps) {
               <th className="px-4 py-3 w-28 text-right">Einnahmen</th>
               <th className="px-4 py-3 w-28 text-right">Ausgaben</th>
               <th className="px-4 py-3 w-28 text-right">Saldo</th>
-              <th className="px-4 py-3 w-40">Geprueft von</th>
+              <th className="px-4 py-3 w-40">Geprüft von</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
