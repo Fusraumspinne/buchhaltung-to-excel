@@ -25,10 +25,10 @@ export function AlertModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-200">
         <div className="p-6">
           <h3 className="text-xl font-bold text-slate-900 mb-2">{title}</h3>
-          <p className="text-slate-600 leading-relaxed">{message}</p>
+          <div className="text-slate-600 leading-relaxed whitespace-pre-line text-sm">{message}</div>
         </div>
         <div className="bg-slate-50 p-4 flex justify-end gap-3">
           {onConfirm && (

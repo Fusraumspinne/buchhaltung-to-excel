@@ -3,7 +3,7 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import * as ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
-import { Download, FileSpreadsheet } from "lucide-react";
+import { Download, FileSpreadsheet, Info } from "lucide-react";
 import { AlertModal } from "@/components/alert-modal";
 import { AusgabenTable } from "@/components/ausgaben-table";
 import { DarlehenTable } from "@/components/darlehen-table";
@@ -165,6 +165,25 @@ export default function Home() {
     title: "",
     message: "",
   });
+
+  const showHelp = () => {
+    showAlert(
+      "Informationen zur Nutzung",
+      "⚠️ WICHTIG: Die Excel-Datei dient primär als Datenspeicher. Manuelle Änderungen (v.a. Struktur/Spalten) können die Datei korrumpieren. Einzelne Werte können korrigiert werden, solange keine Pflichtfelder (außer 'Beschreibung') leer bleiben.\n\n" +
+      "💻 DATENSPEICHERUNG\n" +
+      "• Die Seite lädt beim Start die zuletzt auf diesem Gerät bearbeiteten Daten aus dem lokalen Speicher, nicht zwingend den aktuellsten Cloud-Stand.\n" +
+      "• Nutze den 'Import' Button, um zuvor exportierte Excel-Dateien wiederherzustellen.\n\n" +
+      "💾 EXPORT & BACKUPS\n" +
+      "• Der 'Export' speichert die Daten lokal als .xlsx und bietet die Option eines Cloud-Backups.\n" +
+      "• Bitte gehe sparsam mit Backups um (nur bei wichtigen Änderungen), um monatliche API-Limits nicht zu überschreiten.\n\n" +
+      "📊 NAVIGATION & ANALYSE\n" +
+      "• AnalyseDashboard: Visualisiert Einnahmen/Ausgaben auf Wochen-, Monats- und Jahresbasis.\n" +
+      "• Kassenbuch: Chronologische Übersicht aller Transaktionen inkl. Filter- und Sortierfunktionen.\n" +
+      "• Eindeutige IDs: Alle Einträge (Darlehen, Ausgaben, Verkäufe) erhalten eine unique ID zur Nachverfolgbarkeit.\n\n" +
+      "📝 NEUE EINTRÄGE\n" +
+      "• Validierung: Damit ein Element gespeichert werden kann, müssen alle Felder ausgefüllt sein. Das einzige optionale Feld ist die 'Beschreibung'."
+    );
+  };
 
   const showAlert = (title: string, message: string) => {
     setAlertConfig({ isOpen: true, title, message });
@@ -835,6 +854,13 @@ export default function Home() {
         <div className="flex flex-col sm:flex-row justify-between items-end sm:items-center mb-8 gap-4 pt-4">
           <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 tracking-tight">
             <FileSpreadsheet className="text-blue-500 w-5 h-5" /> BUCHHALTUNG
+            <button 
+              onClick={showHelp}
+              className="p-1 hover:bg-slate-100 rounded-full transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
+              title="Informationen"
+            >
+              <Info className="w-4 h-4" />
+            </button>
           </h1>
           <div className="flex gap-2">
             <label className="cursor-pointer bg-white hover:bg-slate-50 text-slate-600 px-3 py-1.5 rounded border border-slate-200 text-[11px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm">
