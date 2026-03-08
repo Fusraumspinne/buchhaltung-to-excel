@@ -1,3 +1,5 @@
+import { head, put } from "@vercel/blob";
+
 export const BACKUP_BLOB_PREFIX = "backups/";
 export const BACKUP_INDEX_BLOB_PATH = `${BACKUP_BLOB_PREFIX}index.json`;
 
@@ -48,3 +50,40 @@ export function normalizeBackupIndexEntry(entry: Partial<BackupIndexEntry>): Bac
     size,
   };
 }
+
+export async function getBackupIndex(): Promise<BackupIndexEntry[]> {
+  try {
+    const meta = await head(BACKUP_INDEX_BLOB_PATH);
+    if (meta && meta.url) {
+      const resp = await fetch(meta.url, {
+        headers: {
+          Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`,
+        },
+      });
+      if (resp.ok) {
+        const parsed = await resp.json();
+        if (Array.isArray(parsed)) {
+          return parsed.map(normalizeBackupIndexEntry).filter(Boolean) as BackupIndexEntry[];
+        }
+      } else {
+        throw new Error("Failed to fetch index from url, status: " + resp.status);
+      }
+    }
+  } catch (err: any) {
+    if (!String(err).includes('BlobNotFoundError')) {
+      console.warn('Backup index missing or invalid', err);
+    }
+  }
+  return [];
+}
+
+export async function saveBackupIndex(entries: BackupIndexEntry[]) {
+  const data = JSON.stringify(entries, null, 2);
+  await put(BACKUP_INDEX_BLOB_PATH, data, {
+    access: 'private',
+    addRandomSuffix: false,
+    contentType: 'application/json',
+    allowOverwrite: true,
+  });
+}
+

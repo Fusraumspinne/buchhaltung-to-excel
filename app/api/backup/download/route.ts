@@ -29,11 +29,9 @@ export async function GET(req: NextRequest) {
 
     assertBlobConfig();
     const safeName = sanitizeBackupFilename(filename);
-    const blob = await get(toBackupBlobPath(safeName), {
-      access: "private",
-    });
+    const blob = await get(toBackupBlobPath(safeName), { access: 'private' });
 
-    if (!blob || blob.statusCode !== 200 || !blob.stream) {
+    if (!blob || !blob.stream) {
       return new Response("Backup not found", { status: 404 });
     }
 
@@ -44,7 +42,10 @@ export async function GET(req: NextRequest) {
         "content-disposition": `attachment; filename="${safeName}"`,
       },
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (String(err).includes("BlobNotFoundError")) {
+      return new Response("Backup not found", { status: 404 });
+    }
     console.error("Error downloading backup:", err);
     if (isBlobConnectionError(err)) {
       return new Response(

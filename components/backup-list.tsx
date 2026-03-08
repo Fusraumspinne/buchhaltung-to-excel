@@ -20,6 +20,8 @@ export function BackupList({ onRestore }: BackupListProps) {
   const [errorMessage, setErrorMessage] = useState("");
   const [deletingName, setDeletingName] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
   const limit = 5;
@@ -95,6 +97,39 @@ export function BackupList({ onRestore }: BackupListProps) {
     }
   };
 
+  const deleteAllBackups = async () => {
+    setIsDeletingAll(true);
+    try {
+      const resp = await fetch(`/api/backup?deleteAll=true`, {
+        method: "DELETE",
+      });
+      if (resp.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => null);
+        if (data?.code === "BLOB_UNREACHABLE") {
+          setErrorMessage("Zu diesem Server kann keine Verbindung mehr aufgebaut werden.");
+        } else {
+          setErrorMessage("Backups konnten nicht gelöscht werden.");
+        }
+        return;
+      }
+
+      setBackups([]);
+      setTotal(0);
+      setPage(0);
+    } catch (err) {
+      console.error("Failed to delete all backups", err);
+      setErrorMessage("Zu diesem Server kann keine Verbindung mehr aufgebaut werden.");
+    } finally {
+      setIsDeletingAll(false);
+      setShowDeleteAllConfirm(false);
+    }
+  };
+
   return (
     <>
       <div className="bg-white rounded-lg border border-slate-100 shadow-sm overflow-hidden mb-8">
@@ -102,6 +137,14 @@ export function BackupList({ onRestore }: BackupListProps) {
           <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
             <History className="w-3.5 h-3.5" /> Letzte Backups
           </h3>
+          {backups.length > 0 && (
+            <button
+              onClick={() => setShowDeleteAllConfirm(true)}
+              className="flex items-center gap-1.5 px-2 py-1 text-slate-400 hover:text-red-500 text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+            >
+               <Trash2 className="w-3 h-3" /> Alle löschen
+            </button>
+          )}
         </div>
 
         <div className="divide-y divide-slate-50">
@@ -182,6 +225,20 @@ export function BackupList({ onRestore }: BackupListProps) {
         onClose={() => {
           if (!isDeleting) {
             setDeletingName(null);
+          }
+        }}
+      />
+
+      <AlertModal
+        isOpen={showDeleteAllConfirm}
+        title="Alle Backups löschen"
+        message="Möchtest du wirklich ALLE Backups unwiderruflich löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+        confirmLabel={isDeletingAll ? "Lösche..." : "Alle löschen"}
+        cancelLabel="Abbrechen"
+        onConfirm={deleteAllBackups}
+        onClose={() => {
+          if (!isDeletingAll) {
+            setShowDeleteAllConfirm(false);
           }
         }}
       />

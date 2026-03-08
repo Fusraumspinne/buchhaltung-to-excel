@@ -1,7 +1,7 @@
 import { del, put } from "@vercel/blob";
 import { NextRequest } from "next/server";
 import { isRequestAuthorized } from "@/lib/auth";
-import { assertBlobConfig, sanitizeBackupFilename, toBackupBlobPath } from "@/lib/blob-backups";
+import { assertBlobConfig, sanitizeBackupFilename, toBackupBlobPath, getBackupIndex, saveBackupIndex, normalizeBackupIndexEntry } from "@/lib/blob-backups";
 
 function isBlobConnectionError(error: unknown) {
   const message = String(error || "").toLowerCase();
@@ -50,6 +50,19 @@ export async function POST(req: NextRequest) {
       contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
 
+    const index = await getBackupIndex();
+    const newEntry = normalizeBackupIndexEntry({
+      name: safeName,
+      date: new Date().toISOString(),
+      size: arrayBuffer.byteLength,
+    });
+    
+    if (newEntry) {
+      const filtered = index.filter((e) => e.name !== safeName);
+      filtered.push(newEntry);
+      await saveBackupIndex(filtered);
+    }
+
     return new Response(JSON.stringify({ ok: true, path: blob.pathname }), {
       status: 200,
       headers: { "content-type": "application/json" },
@@ -76,6 +89,24 @@ export async function DELETE(req: NextRequest) {
     }
 
     const url = new URL(req.url);
+    const deleteAll = url.searchParams.get("deleteAll");
+
+    if (deleteAll === "true") {
+      assertBlobConfig();
+      const index = await getBackupIndex();
+      const paths = index.map((e) => e.path);
+      
+      for (let i = 0; i < paths.length; i += 500) {
+        await del(paths.slice(i, i + 500));
+      }
+      await saveBackupIndex([]);
+
+      return new Response(JSON.stringify({ ok: true, deletedAll: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
     const filenameParam = url.searchParams.get("filename");
     if (!filenameParam) {
       return new Response(JSON.stringify({ ok: false, error: "Missing filename" }), {
@@ -87,6 +118,12 @@ export async function DELETE(req: NextRequest) {
     const safeName = sanitizeBackupFilename(filenameParam);
     assertBlobConfig();
     await del(toBackupBlobPath(safeName));
+
+    const index = await getBackupIndex();
+    const filtered = index.filter((e) => e.name !== safeName);
+    if (filtered.length !== index.length) {
+      await saveBackupIndex(filtered);
+    }
 
     return new Response(JSON.stringify({ ok: true, filename: safeName }), {
       status: 200,

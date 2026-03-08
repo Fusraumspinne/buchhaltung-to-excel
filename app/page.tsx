@@ -159,6 +159,7 @@ export default function Home() {
     message: string;
     onConfirm?: () => void;
     confirmLabel?: string;
+    cancelLabel?: string;
   }>({
     isOpen: false,
     title: "",
@@ -173,9 +174,10 @@ export default function Home() {
     title: string,
     message: string,
     onConfirm: () => void,
-    confirmLabel = "Bestätigen"
+    confirmLabel = "Bestätigen",
+    cancelLabel = "Abbrechen"
   ) => {
-    setAlertConfig({ isOpen: true, title, message, onConfirm, confirmLabel });
+    setAlertConfig({ isOpen: true, title, message, onConfirm, confirmLabel, cancelLabel });
   };
 
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -586,25 +588,35 @@ export default function Home() {
     const buffer = await workbook.xlsx.writeBuffer();
     saveAs(new Blob([buffer]), filename);
 
-    (async () => {
-      try {
-        const resp = await fetch(`/api/backup?filename=${encodeURIComponent(filename)}`, {
-          method: "POST",
-          headers: { "content-type": "application/octet-stream" },
-          body: buffer,
-        });
-        if (!resp.ok) {
-          const data = await resp.json().catch(() => null);
-          if (data?.code === "BLOB_UNREACHABLE") {
-            console.warn("Backup upload skipped: blob service unreachable");
+    showConfirm(
+      "Backup erstellen",
+      "Möchtest du diese Daten auch als Backup in der Cloud speichern, um sie später am Handy oder PC wiederherzustellen?",
+      async () => {
+        try {
+          const resp = await fetch(`/api/backup?filename=${encodeURIComponent(filename)}`, {
+            method: "POST",
+            headers: { "content-type": "application/octet-stream" },
+            body: buffer,
+          });
+          if (!resp.ok) {
+            const data = await resp.json().catch(() => null);
+            if (data?.code === "BLOB_UNREACHABLE") {
+              showAlert("Fehler", "Backup server aktuell nicht erreichbar.");
+            } else {
+              showAlert("Fehler", "Backup Upload fehlgeschlagen.");
+            }
           } else {
-            console.warn("Backup upload failed", data || "unknown error");
+            showAlert("Erfolg", "Backup wurde erfolgreich hochgeladen und kann nun im Backups Tab geladen werden.");
+            setActiveTab("backups");
           }
+        } catch (err) {
+          console.error("Backup upload error", err);
+          showAlert("Fehler", "Backup Upload fehlgeschlagen.");
         }
-      } catch (err) {
-        console.warn("Backup upload error", err);
-      }
-    })();
+      },
+      "Backup erstellen",
+      "Nein"
+    );
   };
 
   const findSheet = (workbook: ExcelJS.Workbook, name: string) =>
@@ -1005,6 +1017,7 @@ export default function Home() {
         message={alertConfig.message}
         onConfirm={alertConfig.onConfirm}
         confirmLabel={alertConfig.confirmLabel}
+        cancelLabel={alertConfig.cancelLabel}
         onClose={() => {
           setAlertConfig((prev) => ({ ...prev, isOpen: false }));
           if (!hasInitialized && alertConfig.title === "Letzten Stand laden?") {

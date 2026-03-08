@@ -1,7 +1,6 @@
-import { list } from "@vercel/blob";
 import { NextRequest } from "next/server";
 import { isRequestAuthorized } from "@/lib/auth";
-import { assertBlobConfig, BACKUP_BLOB_PREFIX, fromBackupBlobPath } from "@/lib/blob-backups";
+import { assertBlobConfig, getBackupIndex } from "@/lib/blob-backups";
 
 function isBlobConnectionError(error: unknown) {
   const message = String(error || "").toLowerCase();
@@ -29,67 +28,13 @@ export async function GET(req: NextRequest) {
     const offset = parseInt(url.searchParams.get("offset") || "0");
     assertBlobConfig();
 
-    const targetCount = offset + limit;
-    let cursor: string | undefined;
-    let hasMore = true;
-    const allBlobs: Array<{
-      pathname: string;
-      uploadedAt: Date;
-      size: number;
-    }> = [];
-
-    while (hasMore) {
-      const result = await list({
-        prefix: BACKUP_BLOB_PREFIX,
-        cursor,
-        limit: 1000,
-      });
-
-      hasMore = result.hasMore;
-      cursor = result.cursor;
-
-      for (const blob of result.blobs) {
-        allBlobs.push({
-          pathname: blob.pathname,
-          uploadedAt: blob.uploadedAt,
-          size: blob.size,
-        });
-      }
-
-      if (!hasMore && allBlobs.length === 0) {
-        return new Response(JSON.stringify({ backups: [], total: 0 }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
-      }
-
-      if (!hasMore || allBlobs.length >= targetCount) {
-        break;
-      }
-    }
-
-    while (hasMore) {
-      const result = await list({
-        prefix: BACKUP_BLOB_PREFIX,
-        cursor,
-        limit: 1000,
-      });
-      hasMore = result.hasMore;
-      cursor = result.cursor;
-      for (const blob of result.blobs) {
-        allBlobs.push({
-          pathname: blob.pathname,
-          uploadedAt: blob.uploadedAt,
-          size: blob.size,
-        });
-      }
-    }
+    const allBlobs = await getBackupIndex();
 
     const files = allBlobs
-      .map((blob) => ({
-        name: fromBackupBlobPath(blob.pathname),
-        date: blob.uploadedAt.toISOString(),
-        size: blob.size,
+      .map((entry) => ({
+        name: entry.name,
+        date: entry.date,
+        size: entry.size,
       }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
