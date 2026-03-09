@@ -176,11 +176,11 @@ export default function Home() {
       "• Der 'Export' speichert die Daten lokal als .xlsx und bietet die Option eines Cloud-Backups.\n" +
       "• Bitte gehe sparsam mit Backups um (nur bei wichtigen Änderungen), um monatliche API-Limits nicht zu überschreiten.\n\n" +
       "📊 NAVIGATION & ANALYSE\n" +
-      "• AnalyseDashboard: Visualisiert Einnahmen/Ausgaben auf Wochen-, Monats- und Jahresbasis.\n" +
+      "• AnalyseDashboard: Visualisiert den Kontostand-Verlauf sowie Einnahmen/Ausgaben auf Wochen-, Monats- und Jahresbasis.\n" +
       "• Kassenbuch: Chronologische Übersicht aller Transaktionen inkl. Filter- und Sortierfunktionen.\n" +
       "• Eindeutige IDs: Alle Einträge (Darlehen, Ausgaben, Verkäufe) erhalten eine unique ID zur Nachverfolgbarkeit.\n\n" +
       "📝 NEUE EINTRÄGE\n" +
-      "• Validierung: Damit ein Element gespeichert werden kann, müssen alle Felder ausgefüllt sein. Das einzige optionale Feld ist die 'Beschreibung'."
+      "• Einträge können auch mit leeren Feldern erstellt und später bearbeitet werden."
     );
   };
 
@@ -264,57 +264,9 @@ export default function Home() {
   }, [darlehenRows, ausgabenRows, verkaufRows, hasInitialized]);
 
   const handleTabChange = (newTab: TabKey) => {
-    const isIncomplete = () => {
-      switch (activeTab) {
-        case "darlehen":
-          return darlehenRows.some((r) => !isValidDarlehenRow(r));
-        case "ausgaben":
-          return ausgabenRows.some(r => r.ausgabe.trim() === "" || r.geprueftVon.trim() === "" || r.preis === 0);
-        case "verkauf":
-          return verkaufRows.some(r => r.produkt.trim() === "" || r.geprueftVon.trim() === "" || r.preis === 0);
-        default:
-          return false;
-      }
-    };
-
-    if (isIncomplete()) {
-      showConfirm(
-        "Unvollständige Daten",
-        "Einige Einträge sind noch nicht vollständig ausgefüllt. Möchtest du sie verwerfen und die Seite wechseln?",
-        () => {
-          setDarlehenRows((prev) => prev.filter((r) => isValidDarlehenRow(r)));
-          setAusgabenRows((prev) =>
-            prev.filter((r) => r.ausgabe.trim() !== "" && r.geprueftVon.trim() !== "" && r.preis !== 0),
-          );
-          setVerkaufRows((prev) =>
-            prev.filter((r) => r.produkt.trim() !== "" && r.geprueftVon.trim() !== "" && r.preis !== 0),
-          );
-          setActiveTab(newTab);
-          setCurrentPage(1);
-        },
-        "Wechseln"
-      );
-      return;
-    }
-
-    setDarlehenRows((prev) => prev.filter((r) => isValidDarlehenRow(r)));
-    setAusgabenRows((prev) =>
-      prev.filter((r) => r.ausgabe.trim() !== "" && r.geprueftVon.trim() !== "" && r.preis !== 0),
-    );
-    setVerkaufRows((prev) =>
-      prev.filter((r) => r.produkt.trim() !== "" && r.geprueftVon.trim() !== "" && r.preis !== 0),
-    );
     setActiveTab(newTab);
     setCurrentPage(1);
   };
-
-  const hasEmptyDarlehen = darlehenRows.some((r) => !isValidDarlehenRow(r));
-  const hasEmptyAusgabe = ausgabenRows.some(
-    (r) => r.ausgabe.trim() === "" || r.geprueftVon.trim() === "" || r.preis === 0,
-  );
-  const hasEmptyVerkauf = verkaufRows.some(
-    (r) => r.produkt.trim() === "" || r.geprueftVon.trim() === "" || r.preis === 0,
-  );
 
   const getNextId = (
     currentDarlehen: DarlehenEntry[],
@@ -335,7 +287,6 @@ export default function Home() {
   }, [darlehenRows, ausgabenRows, verkaufRows]);
 
   const addDarlehen = () => {
-    if (hasEmptyDarlehen) return;
     setDarlehenRows((prev) => [
       {
         id: getNextId(prev, ausgabenRows, verkaufRows),
@@ -352,11 +303,7 @@ export default function Home() {
   const addDarlehenKaeufer = (rowId: number) => {
     setDarlehenRows((prev) =>
       prev.map((row) =>
-        row.id === rowId && row.id === globalMaxId
-          ? row.kaeuferAnteile.every((item) => item.kaeufer.trim() !== "" && item.anteil > 0)
-            ? { ...row, kaeuferAnteile: [...row.kaeuferAnteile, createDefaultKaeufer("", 0)] }
-            : row
-          : row,
+        row.id === rowId ? { ...row, kaeuferAnteile: [...row.kaeuferAnteile, createDefaultKaeufer("", 0)] } : row,
       ),
     );
   };
@@ -368,7 +315,7 @@ export default function Home() {
       () => {
         setDarlehenRows((prev) =>
           prev.map((row) => {
-            if (row.id !== rowId || row.id !== globalMaxId) {
+            if (row.id !== rowId) {
               return row;
             }
             const nextAnteile = row.kaeuferAnteile.filter((item) => item.id !== anteilId);
@@ -391,7 +338,7 @@ export default function Home() {
   ) => {
     setDarlehenRows((prev) =>
       prev.map((row) => {
-        if (row.id !== rowId || row.id !== globalMaxId) {
+        if (row.id !== rowId) {
           return row;
         }
 
@@ -412,7 +359,6 @@ export default function Home() {
   };
 
   const addAusgabe = () => {
-    if (hasEmptyAusgabe) return;
     setAusgabenRows((prev) => [
       {
         id: getNextId(darlehenRows, prev, verkaufRows),
@@ -427,7 +373,6 @@ export default function Home() {
   };
 
   const addVerkauf = () => {
-    if (hasEmptyVerkauf) return;
     setVerkaufRows((prev) => [
       {
         id: getNextId(darlehenRows, ausgabenRows, prev),
@@ -588,7 +533,7 @@ export default function Home() {
 
     const now = new Date();
     const lastEdited = now.toLocaleDateString("de-DE") + " " + now.toLocaleTimeString("de-DE", { hour: '2-digit', minute: '2-digit' });
-    const metaText = `Buchhaltung von: Riesener Fashion Company - Erstellt: ${lastEdited} - Hinweis: Das Bearbeiten der Excel-Datei kann zur Korruption führen und somit nicht mehr importiert werden, einzelne Werte in den Einträgen können ohne Bedenken geändert werden, nur sollten Felder nicht leer bleiben.`;
+    const metaText = `Buchhaltung von: Riesener Fashion Company - Erstellt: ${lastEdited} - Hinweis: Das Bearbeiten der Excel-Datei kann zur Korruption führen und somit nicht mehr importiert werden, einzelne Werte in den Einträgen können ohne Bedenken geändert werden.`;
 
     [kassenbuchSheet, darlehenSheet, ausgabenSheet, verkaufSheet].forEach((sheet) => {
       sheet.insertRow(1, [metaText]);
@@ -783,9 +728,7 @@ export default function Home() {
         beschreibung: parseCellText(row.getCell(ausgabenColumns.beschreibung).value),
         geprueftVon: parseCellText(row.getCell(ausgabenColumns.geprueftVon).value),
       };
-      if (entry.ausgabe.trim() !== "" || entry.preis !== 0 || entry.beschreibung.trim() !== "" || entry.geprueftVon.trim() !== "") {
-        importedAusgaben.push(entry);
-      }
+      importedAusgaben.push(entry);
     });
 
     verkaufSheet?.eachRow((row, rowNumber) => {
@@ -800,9 +743,7 @@ export default function Home() {
         beschreibung: parseCellText(row.getCell(verkaufColumns.beschreibung).value),
         geprueftVon: parseCellText(row.getCell(verkaufColumns.geprueftVon).value),
       };
-      if (entry.produkt.trim() !== "" || entry.preis !== 0 || entry.beschreibung.trim() !== "" || entry.geprueftVon.trim() !== "") {
-        importedVerkauf.push(entry);
-      }
+      importedVerkauf.push(entry);
     });
 
     setDarlehenRows(importedDarlehen.sort((a, b) => b.id - a.id));
@@ -919,19 +860,17 @@ export default function Home() {
                 setCurrentPage(1);
               }}
               onRemove={(id) => {
-                if (id === globalMaxId) {
-                  showConfirm(
-                    "Eintrag löschen",
-                    "Möchtest du diesen Eintrag wirklich löschen?",
-                    () => setDarlehenRows((prev) => prev.filter((row) => row.id !== id)),
-                    "Löschen"
-                  );
-                }
+                showConfirm(
+                  "Eintrag löschen",
+                  "Möchtest du diesen Eintrag wirklich löschen?",
+                  () => setDarlehenRows((prev) => prev.filter((row) => row.id !== id)),
+                  "Löschen"
+                );
               }}
               onUpdate={(id, field, value) =>
                 setDarlehenRows((prev) =>
                   prev.map((row) =>
-                    row.id === id && row.id === globalMaxId
+                    row.id === id
                       ? {
                           ...row,
                           [field]: field === "preis" ? Math.max(0, Number(value) || 0) : value,
@@ -961,18 +900,16 @@ export default function Home() {
                 setCurrentPage(1);
               }}
               onRemove={(id) => {
-                if (id === globalMaxId) {
-                  showConfirm(
-                    "Eintrag löschen",
-                    "Möchtest du diesen Eintrag wirklich löschen?",
-                    () => setAusgabenRows((prev) => prev.filter((row) => row.id !== id)),
-                    "Löschen"
-                  );
-                }
+                showConfirm(
+                  "Eintrag löschen",
+                  "Möchtest du diesen Eintrag wirklich löschen?",
+                  () => setAusgabenRows((prev) => prev.filter((row) => row.id !== id)),
+                  "Löschen"
+                );
               }}
               onUpdate={(id, field, value) =>
                 setAusgabenRows((prev) =>
-                  prev.map((row) => (row.id === id && row.id === globalMaxId ? { ...row, [field]: value } : row)),
+                  prev.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
                 )
               }
             />
@@ -993,18 +930,16 @@ export default function Home() {
                 setCurrentPage(1);
               }}
               onRemove={(id) => {
-                if (id === globalMaxId) {
-                  showConfirm(
-                    "Eintrag löschen",
-                    "Möchtest du diesen Eintrag wirklich löschen?",
-                    () => setVerkaufRows((prev) => prev.filter((row) => row.id !== id)),
-                    "Löschen"
-                  );
-                }
+                showConfirm(
+                  "Eintrag löschen",
+                  "Möchtest du diesen Eintrag wirklich löschen?",
+                  () => setVerkaufRows((prev) => prev.filter((row) => row.id !== id)),
+                  "Löschen"
+                );
               }}
               onUpdate={(id, field, value) =>
                 setVerkaufRows((prev) =>
-                  prev.map((row) => (row.id === id && row.id === globalMaxId ? { ...row, [field]: value } : row)),
+                  prev.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
                 )
               }
             />
@@ -1111,11 +1046,3 @@ function normalizeDarlehenEntry(row: Partial<DarlehenEntry>): DarlehenEntry {
   };
 }
 
-function isValidDarlehenRow(row: DarlehenEntry) {
-  return (
-    row.geprueftVon.trim() !== "" &&
-    row.preis !== 0 &&
-    row.kaeuferAnteile.length > 0 &&
-    row.kaeuferAnteile.every((item) => item.kaeufer.trim() !== "" && item.anteil > 0)
-  );
-}

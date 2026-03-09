@@ -19,7 +19,7 @@ interface DarlehenTableProps {
 
 export function DarlehenTable({
   rows,
-  globalMaxId,
+  globalMaxId: _globalMaxId,
   onAdd,
   onRemove,
   onUpdate,
@@ -43,16 +43,13 @@ export function DarlehenTable({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.map((row) => {
-              const isEditable = row.id === globalMaxId;
               return (
-              <tr key={row.id} className="hover:bg-slate-50/40 transition-colors">
+              <tr key={row.id} className="group hover:bg-slate-50/40 transition-colors">
                 <td className="px-4 py-3 text-xs font-bold text-slate-600 align-top">#{row.id}</td>
                 <td className="px-2 py-2 align-top">
                   <input
                     type="date"
-                    required
                     value={row.datum}
-                    disabled={!isEditable}
                     onChange={(e) => onUpdate(row.id, "datum", e.target.value)}
                     className="w-full bg-transparent p-1 text-xs border border-transparent focus:border-slate-100 rounded outline-none cursor-pointer"
                   />
@@ -60,23 +57,19 @@ export function DarlehenTable({
                 <td className="px-2 py-2">
                   <div className="space-y-2">
                     {row.kaeuferAnteile.map((anteil) => (
-                      <div key={anteil.id} className="flex items-center gap-2">
+                      <div key={anteil.id} className="group/anteil flex items-center gap-2">
                         <input
                           type="text"
-                          required
                           value={anteil.kaeufer}
-                          disabled={!isEditable}
                           placeholder="Käufername"
                           onChange={(e) => onUpdateKaeufer(row.id, anteil.id, "kaeufer", e.target.value)}
-                          className="flex-1 min-w-[150px] bg-transparent p-1 text-xs border border-transparent focus:border-slate-100 rounded outline-none"
+                          className="flex-1 min-w-37.5 bg-transparent p-1 text-xs border border-transparent focus:border-slate-100 rounded outline-none"
                         />
                         <div className="flex items-center gap-2 w-28 shrink-0">
                           <input
                             type="number"
                             min="0"
                             step="1"
-                            required
-                            disabled={!isEditable}
                             value={anteil.anteil === 0 ? "" : anteil.anteil}
                             placeholder="Anteil"
                             onChange={(e) =>
@@ -92,10 +85,10 @@ export function DarlehenTable({
                           <span className="text-[11px] text-slate-400">Anzahl</span>
                         </div>
                         <div className="w-6 flex justify-center">
-                          {row.kaeuferAnteile.length > 1 && isEditable && (
+                          {row.kaeuferAnteile.length > 1 && (
                             <button
                               onClick={() => onRemoveKaeufer(row.id, anteil.id)}
-                              className="text-slate-300 hover:text-red-500 transition-colors p-1 cursor-pointer"
+                              className="p-1 text-slate-300 opacity-0 transition-all cursor-pointer hover:text-red-500 group-hover/anteil:opacity-100 focus-visible:opacity-100"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -104,21 +97,12 @@ export function DarlehenTable({
                       </div>
                     ))}
                     <div className="flex items-center justify-between">
-                      {(() => {
-                        const canAddKaeufer = row.kaeuferAnteile.every(
-                          (item) => item.kaeufer.trim() !== "" && item.anteil > 0,
-                        );
-                        if (!isEditable) return null;
-                        return (
-                          <button
-                            onClick={() => onAddKaeufer(row.id)}
-                            disabled={!canAddKaeufer}
-                            className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-900 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            <UserRoundPlus className="w-3.5 h-3.5" /> Käufer
-                          </button>
-                        );
-                      })()}
+                      <button
+                        onClick={() => onAddKaeufer(row.id)}
+                        className="hidden transition-all group-hover:inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-900 cursor-pointer"
+                      >
+                        <UserRoundPlus className="w-3.5 h-3.5" /> Käufer
+                      </button>
                     </div>
                   </div>
                 </td>
@@ -126,8 +110,6 @@ export function DarlehenTable({
                   <input
                     type="number"
                     step="0.01"
-                    required
-                    disabled={!isEditable}
                     value={row.preis === 0 ? "" : row.preis}
                     placeholder="0.00"
                     onChange={(e) => onUpdate(row.id, "preis", e.target.value === "" ? 0 : Number(e.target.value))}
@@ -137,8 +119,6 @@ export function DarlehenTable({
                 <td className="px-2 py-2 align-top">
                   <input
                     type="text"
-                    required
-                    disabled={!isEditable}
                     value={row.geprueftVon}
                     placeholder="Prüfer"
                     onChange={(e) => onUpdate(row.id, "geprueftVon", e.target.value)}
@@ -146,14 +126,12 @@ export function DarlehenTable({
                   />
                 </td>
                 <td className="px-2 py-2 text-center align-top">
-                  {row.id === globalMaxId && (
-                    <button
-                      onClick={() => onRemove(row.id)}
-                      className="text-slate-300 hover:text-red-500 transition-colors p-1 cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => onRemove(row.id)}
+                    className="p-1 text-slate-300 opacity-0 transition-all cursor-pointer hover:text-red-500 group-hover:opacity-100 focus-visible:opacity-100"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </td>
               </tr>
               );

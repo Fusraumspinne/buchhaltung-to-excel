@@ -30,7 +30,7 @@ export function BackupList({ onRestore }: BackupListProps) {
     setLoading(true);
     setErrorMessage("");
     try {
-      const resp = await fetch(`/api/backup/list?limit=${limit}&offset=${page * limit}`);
+      const resp = await fetch(`/api/backup/list?all=true`);
       if (resp.ok) {
         const data = await resp.json();
         setBackups(data.backups);
@@ -55,11 +55,11 @@ export function BackupList({ onRestore }: BackupListProps) {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, []);
 
   useEffect(() => {
     fetchBackups();
-  }, [fetchBackups]);
+  }, []);
 
   const totalPages = Math.ceil(total / limit);
 
@@ -159,8 +159,12 @@ export function BackupList({ onRestore }: BackupListProps) {
               Keine Backups gefunden.
             </div>
           ) : (
-            backups.map((b) => (
-              <div key={b.name} className="p-4 flex justify-between items-center hover:bg-slate-50/50 transition-colors gap-2">
+            (() => {
+              const start = page * limit;
+              const end = start + limit;
+              const pageItems = backups.slice(start, end);
+              return pageItems.map((b) => (
+                <div key={b.name} className="p-4 flex justify-between items-center hover:bg-slate-50/50 transition-colors gap-2">
                 <div>
                   <div className="text-xs font-semibold text-slate-700 truncate max-w-50 sm:max-w-xs" title={b.name}>
                     {b.name}
@@ -183,8 +187,9 @@ export function BackupList({ onRestore }: BackupListProps) {
                     <Download className="w-3 h-3 rotate-180" /> Laden
                   </button>
                 </div>
-              </div>
-            ))
+                </div>
+              ));
+            })()
           )}
         </div>
 

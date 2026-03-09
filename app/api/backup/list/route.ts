@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
 
     const limit = parseInt(url.searchParams.get("limit") || "5");
     const offset = parseInt(url.searchParams.get("offset") || "0");
+    const all = String(url.searchParams.get("all") || "").toLowerCase() === "true";
     assertBlobConfig();
 
     const allBlobs = await getBackupIndex();
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
       }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    const paginated = files.slice(offset, offset + limit);
+    const paginated = all ? files : files.slice(offset, offset + limit);
 
     return new Response(JSON.stringify({ backups: paginated, total: files.length }), {
       status: 200,

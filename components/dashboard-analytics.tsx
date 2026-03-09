@@ -24,6 +24,7 @@ interface Bucket {
   income: number;
   expense: number;
   net: number;
+  balance: number;
 }
 
 const rangeOptions: Array<{ key: RangeKey; label: string }> = [
@@ -72,6 +73,7 @@ export function DashboardAnalytics({ rows }: DashboardAnalyticsProps) {
           income: 0,
           expense: 0,
           net: 0,
+          balance: 0,
         });
       }
 
@@ -88,6 +90,22 @@ export function DashboardAnalytics({ rows }: DashboardAnalyticsProps) {
         buckets[idx].income += row.einnahmen;
         buckets[idx].expense += row.ausgaben;
         buckets[idx].net += row.einnahmen - row.ausgaben;
+      });
+
+      let runningBalance = 0;
+      rows
+        .map((row) => ({ date: parseDateInput(row.datum), change: row.einnahmen - row.ausgaben }))
+        .filter((item): item is { date: Date; change: number } => item.date !== null)
+        .forEach((item) => {
+          const key = `${item.date.getFullYear()}-${String(item.date.getMonth() + 1).padStart(2, "0")}`;
+          if (!monthIndex.has(key)) {
+            runningBalance += item.change;
+          }
+        });
+
+      buckets.forEach((bucket) => {
+        runningBalance += bucket.net;
+        bucket.balance = runningBalance;
       });
 
       return buckets;
@@ -114,6 +132,7 @@ export function DashboardAnalytics({ rows }: DashboardAnalyticsProps) {
         income: 0,
         expense: 0,
         net: 0,
+        balance: 0,
       });
     }
 
@@ -131,6 +150,23 @@ export function DashboardAnalytics({ rows }: DashboardAnalyticsProps) {
       buckets[idx].income += row.einnahmen;
       buckets[idx].expense += row.ausgaben;
       buckets[idx].net += row.einnahmen - row.ausgaben;
+    });
+
+    let runningBalance = 0;
+    rows
+      .map((row) => ({ date: parseDateInput(row.datum), change: row.einnahmen - row.ausgaben }))
+      .filter((item): item is { date: Date; change: number } => item.date !== null)
+      .forEach((item) => {
+        const day = startOfDay(item.date);
+        const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+        if (!dayIndex.has(key)) {
+          runningBalance += item.change;
+        }
+      });
+
+    buckets.forEach((bucket) => {
+      runningBalance += bucket.net;
+      bucket.balance = runningBalance;
     });
 
     return buckets;
@@ -159,7 +195,7 @@ export function DashboardAnalytics({ rows }: DashboardAnalyticsProps) {
     return chartData.reduce(
       (acc, bucket) => {
         acc.maxFlow = Math.max(acc.maxFlow, bucket.income, bucket.expense);
-        acc.maxNetAbs = Math.max(acc.maxNetAbs, Math.abs(bucket.net));
+        acc.maxNetAbs = Math.max(acc.maxNetAbs, Math.abs(bucket.balance));
         return acc;
       },
       { maxFlow: 0, maxNetAbs: 0, daysWithMovement, bookings },
@@ -200,7 +236,7 @@ export function DashboardAnalytics({ rows }: DashboardAnalyticsProps) {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <div className="bg-white border border-slate-200 rounded p-3 sm:p-4">
-            <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Netto-Verlauf</div>
+            <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Kontostand-Verlauf</div>
             <div className="h-44">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 4 }}>
@@ -213,13 +249,13 @@ export function DashboardAnalytics({ rows }: DashboardAnalyticsProps) {
                     tickFormatter={(value) => formatShortCurrency(Number(value))}
                   />
                   <Tooltip
-                    formatter={(value) => [`${formatMoney(Number(value ?? 0))} EUR`, "Netto"]}
+                    formatter={(value) => [`${formatMoney(Number(value ?? 0))} EUR`, "Kontostand"]}
                     labelClassName="text-xs"
                     contentStyle={{ borderRadius: 8, borderColor: "#cbd5e1", fontSize: 12 }}
                   />
                   <Line
                     type="monotone"
-                    dataKey="net"
+                    dataKey="balance"
                     stroke="#0f172a"
                     strokeWidth={2}
                     dot={{ r: 2, fill: "#0f172a" }}
