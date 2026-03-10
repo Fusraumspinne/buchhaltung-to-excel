@@ -150,7 +150,7 @@ export default function Home() {
   const [verkaufRows, setVerkaufRows] = useState<VerkaufEntry[]>([]);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const rowsPerPage = 10;
+  const rowsPerPage = activeTab === "darlehen" ? 3 : 10;
 
   const [alertConfig, setAlertConfig] = useState<{
     isOpen: boolean;
