@@ -206,17 +206,17 @@ export function DashboardAnalytics({ rows }: DashboardAnalyticsProps) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white border border-slate-200 rounded p-3 sm:p-4">
+      <div className="rounded border border-slate-200 bg-white p-3 sm:p-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Analyse Dashboard</h2>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
             {rangeOptions.map((option) => (
               <button
                 key={option.key}
                 onClick={() => setRange(option.key)}
-                className={`px-3 py-1.5 rounded text-[11px] font-bold uppercase tracking-wider transition-all border ${
+                className={`flex-1 rounded border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider transition-all sm:flex-none ${
                   range === option.key
                     ? "bg-slate-900 text-white border-slate-900"
                     : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"
@@ -234,10 +234,10 @@ export function DashboardAnalytics({ rows }: DashboardAnalyticsProps) {
           Keine Daten vorhanden. Füge zuerst Einträge im Kassenbuch hinzu.
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          <div className="bg-white border border-slate-200 rounded p-3 sm:p-4">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <div className="rounded border border-slate-200 bg-white p-3 sm:p-4">
             <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Kontostand-Verlauf</div>
-            <div className="h-44">
+            <div className="h-48 sm:h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 4 }}>
                   <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
@@ -266,9 +266,9 @@ export function DashboardAnalytics({ rows }: DashboardAnalyticsProps) {
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded p-3 sm:p-4">
+          <div className="rounded border border-slate-200 bg-white p-3 sm:p-4">
             <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Einnahmen vs Ausgaben</div>
-            <div className="h-44">
+            <div className="h-48 sm:h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 4 }} barGap={4}>
                   <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />

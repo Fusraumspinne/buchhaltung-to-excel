@@ -11,7 +11,7 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
   if (totalPages <= 1) return null;
 
   return (
-    <div className="flex items-center justify-center gap-2 py-4 border-t border-slate-100 bg-slate-50/20">
+    <div className="flex flex-wrap items-center justify-center gap-1.5 border-t border-slate-100 bg-slate-50/20 px-2 py-3 sm:gap-2 sm:py-4">
       <button
         onClick={() => onPageChange(1)}
         disabled={currentPage === 1}
@@ -29,12 +29,12 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
         <ChevronLeft className="w-4 h-4 text-slate-600" />
       </button>
 
-      <div className="flex items-center gap-1 mx-2">
-        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Seite</span>
-        <span className="h-6 flex items-center justify-center text-xs font-bold text-slate-600">
+      <div className="mx-1.5 flex items-center gap-1 sm:mx-2">
+        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider sm:text-[11px]">Seite</span>
+        <span className="flex h-6 items-center justify-center text-xs font-bold text-slate-600">
           {currentPage}
         </span>
-        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">von</span>
+        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider sm:text-[11px]">von</span>
         <span className="text-xs font-bold text-slate-600">{totalPages}</span>
       </div>
 

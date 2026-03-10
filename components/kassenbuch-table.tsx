@@ -6,9 +6,9 @@ interface KassenbuchTableProps {
 
 export function KassenbuchTable({ rows }: KassenbuchTableProps) {
   return (
-    <div className="bg-white border-t border-slate-200 overflow-hidden">
+    <div className="overflow-hidden border-t border-slate-200 bg-white">
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
+        <table className="w-full min-w-190 border-collapse">
           <thead>
             <tr className="bg-slate-50/80 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-100">
               <th className="px-4 py-3 w-20">ID</th>

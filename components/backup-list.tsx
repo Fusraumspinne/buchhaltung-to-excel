@@ -132,8 +132,8 @@ export function BackupList({ onRestore }: BackupListProps) {
 
   return (
     <>
-      <div className="bg-white rounded-lg border border-slate-100 shadow-sm overflow-hidden mb-8">
-        <div className="p-4 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
+      <div className="mb-8 overflow-hidden rounded-lg border border-slate-100 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-50 bg-slate-50/50 p-4">
           <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
             <History className="w-3.5 h-3.5" /> Letzte Backups
           </h3>
@@ -164,16 +164,16 @@ export function BackupList({ onRestore }: BackupListProps) {
               const end = start + limit;
               const pageItems = backups.slice(start, end);
               return pageItems.map((b) => (
-                <div key={b.name} className="p-4 flex justify-between items-center hover:bg-slate-50/50 transition-colors gap-2">
-                <div>
-                  <div className="text-xs font-semibold text-slate-700 truncate max-w-50 sm:max-w-xs" title={b.name}>
+                <div key={b.name} className="flex flex-col gap-3 p-4 transition-colors hover:bg-slate-50/50 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="max-w-full truncate text-xs font-semibold text-slate-700 sm:max-w-xs" title={b.name}>
                     {b.name}
                   </div>
                   <div className="text-[10px] text-slate-400 mt-0.5">
                     {new Date(b.date).toLocaleString("de-DE")} • {(b.size / 1024).toFixed(1)} KB
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 self-end sm:self-auto">
                   <button
                     onClick={() => setDeletingName(b.name)}
                     className="flex items-center gap-1.5 p-1 text-slate-300 hover:text-red-500 transition-colors rounded text-[11px] font-bold uppercase tracking-wider cursor-pointer"
@@ -182,7 +182,7 @@ export function BackupList({ onRestore }: BackupListProps) {
                   </button>
                   <button
                     onClick={() => onRestore(b.name)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-[10px] font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                    className="flex items-center gap-1.5 rounded bg-slate-900 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm transition-all hover:bg-slate-800 cursor-pointer"
                   >
                     <Download className="w-3 h-3 rotate-180" /> Laden
                   </button>
@@ -194,7 +194,7 @@ export function BackupList({ onRestore }: BackupListProps) {
         </div>
 
         {totalPages > 1 && !errorMessage && (
-          <div className="p-3 border-t border-slate-50 flex justify-center items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-3 border-t border-slate-50 p-3 sm:gap-4">
             <button
               disabled={page === 0}
               onClick={() => setPage(page - 1)}

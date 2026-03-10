@@ -25,16 +25,16 @@ export function AlertModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-200">
-        <div className="p-6">
-          <h3 className="text-xl font-bold text-slate-900 mb-2">{title}</h3>
+      <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="p-4 sm:p-6">
+          <h3 className="mb-2 text-lg font-bold text-slate-900 sm:text-xl">{title}</h3>
           <div className="text-slate-600 leading-relaxed whitespace-pre-line text-sm">{message}</div>
         </div>
-        <div className="bg-slate-50 p-4 flex justify-end gap-3">
+        <div className="flex flex-col-reverse gap-2 bg-slate-50 p-4 sm:flex-row sm:justify-end sm:gap-3">
           {onConfirm && (
             <button
               onClick={onClose}
-              className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              className="w-full rounded-lg px-4 py-2 font-medium text-slate-600 transition-colors hover:bg-slate-100 cursor-pointer sm:w-auto"
             >
               {cancelLabel}
             </button>
@@ -44,7 +44,7 @@ export function AlertModal({
               if (onConfirm) onConfirm();
               onClose();
             }}
-            className="px-6 py-2 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 cursor-pointer"
+            className="w-full rounded-lg bg-slate-900 px-6 py-2 font-medium text-white transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 cursor-pointer sm:w-auto"
           >
             {onConfirm ? confirmLabel : "Verstanden"}
           </button>

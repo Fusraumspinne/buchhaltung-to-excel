@@ -11,9 +11,9 @@ interface VerkaufTableProps {
 
 export function VerkaufTable({ rows, globalMaxId: _globalMaxId, onAdd, onRemove, onUpdate }: VerkaufTableProps) {
   return (
-    <div className="bg-white border-t border-slate-200 overflow-hidden">
+    <div className="overflow-hidden border-t border-slate-200 bg-white">
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
+        <table className="w-full min-w-225 border-collapse">
           <thead>
             <tr className="bg-slate-50/80 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-100">
               <th className="px-4 py-3 w-20">ID</th>
@@ -54,7 +54,7 @@ export function VerkaufTable({ rows, globalMaxId: _globalMaxId, onAdd, onRemove,
                     value={row.preis === 0 ? "" : row.preis}
                     placeholder="0.00"
                     onChange={(e) => onUpdate(row.id, "preis", e.target.value === "" ? 0 : Number(e.target.value))}
-                    className="w-20 bg-transparent p-1 text-xs text-right border border-transparent focus:border-slate-100 rounded outline-none"
+                    className="w-20 rounded border border-transparent bg-transparent p-1 text-right text-xs outline-none focus:border-slate-100"
                   />
                 </td>
                 <td className="px-2 py-2">
@@ -89,10 +89,10 @@ export function VerkaufTable({ rows, globalMaxId: _globalMaxId, onAdd, onRemove,
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-start px-4 py-4 bg-slate-50/30 border-t border-slate-100">
+      <div className="flex items-center justify-start border-t border-slate-100 bg-slate-50/30 px-4 py-4">
         <button
           onClick={onAdd}
-          className="group flex items-center gap-1.5 text-slate-400 hover:text-slate-900 text-[10px] font-black uppercase tracking-widest outline-none transition-all cursor-pointer"
+          className="group flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 outline-none transition-all hover:text-slate-900 cursor-pointer"
         >
           <div className="bg-slate-100 group-hover:bg-slate-200 p-1 rounded transition-colors">
             <Plus className="w-3 h-3" />

@@ -798,10 +798,10 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen p-4 md:p-6 bg-white text-slate-900 font-sans">
-      <div className="max-w-5xl mx-auto border-x border-slate-100 sm:px-4">
-        <div className="flex flex-col sm:flex-row justify-between items-end sm:items-center mb-8 gap-4 pt-4">
-          <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 tracking-tight">
+    <div className="min-h-screen bg-white p-3 text-slate-900 sm:p-4 lg:p-6 font-sans">
+      <div className="mx-auto max-w-6xl px-1 sm:px-2 md:px-4 md:border-x md:border-slate-100">
+        <div className="mb-6 flex flex-col gap-3 pt-2 sm:mb-8 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:pt-4">
+          <h1 className="flex flex-wrap items-center gap-2 text-lg font-bold tracking-tight text-slate-800 sm:text-xl">
             <FileSpreadsheet className="text-blue-500 w-5 h-5" /> BUCHHALTUNG
             <button 
               onClick={showHelp}
@@ -811,14 +811,14 @@ export default function Home() {
               <Info className="w-4 h-4" />
             </button>
           </h1>
-          <div className="flex gap-2">
-            <label className="cursor-pointer bg-white hover:bg-slate-50 text-slate-600 px-3 py-1.5 rounded border border-slate-200 text-[11px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm">
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap">
+            <label className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-600 shadow-sm transition-all hover:bg-slate-50 sm:flex-none sm:justify-start sm:py-1.5">
               <Download className="w-3.5 h-3.5 rotate-180" /> Import
               <input type="file" accept=".xlsx" className="hidden" onChange={handleFileUpload} />
             </label>
             <button
               onClick={exportToExcel}
-              className="bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded text-[11px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-md shadow-slate-200 cursor-pointer"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded bg-slate-900 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-white shadow-md shadow-slate-200 transition-all hover:bg-slate-800 cursor-pointer sm:flex-none sm:justify-start sm:py-1.5"
             >
               <Download className="w-3.5 h-3.5" /> <div className="text-[11px] font-bold uppercase tracking-wider">Export</div>
             </button>
