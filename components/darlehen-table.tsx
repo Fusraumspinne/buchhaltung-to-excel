@@ -88,7 +88,7 @@ export function DarlehenTable({
                           {row.kaeuferAnteile.length > 1 && (
                             <button
                               onClick={() => onRemoveKaeufer(row.id, anteil.id)}
-                              className="p-1 text-slate-300 opacity-0 transition-all cursor-pointer hover:text-red-500 group-hover/anteil:opacity-100 focus-visible:opacity-100"
+                              className="p-1 text-slate-300 transition-all cursor-pointer hover:text-red-500"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -99,7 +99,7 @@ export function DarlehenTable({
                     <div className="flex items-center justify-between">
                       <button
                         onClick={() => onAddKaeufer(row.id)}
-                        className="hidden transition-all group-hover:inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-900 cursor-pointer"
+                        className="transition-all flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-900 cursor-pointer"
                       >
                         <UserRoundPlus className="w-3.5 h-3.5" /> Käufer
                       </button>
@@ -128,7 +128,7 @@ export function DarlehenTable({
                 <td className="px-2 py-2 text-center align-top">
                   <button
                     onClick={() => onRemove(row.id)}
-                    className="p-1 text-slate-300 opacity-0 transition-all cursor-pointer hover:text-red-500 group-hover:opacity-100 focus-visible:opacity-100"
+                    className="p-1 text-slate-300 transition-all cursor-pointer hover:text-red-500"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>

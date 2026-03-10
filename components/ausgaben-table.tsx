@@ -78,7 +78,7 @@ export function AusgabenTable({ rows, globalMaxId: _globalMaxId, onAdd, onRemove
                 <td className="px-2 py-2 text-center">
                   <button
                     onClick={() => onRemove(row.id)}
-                    className="p-1 text-slate-300 opacity-0 transition-all cursor-pointer hover:text-red-500 group-hover:opacity-100 focus-visible:opacity-100"
+                    className="p-1 text-slate-300 transition-all cursor-pointer hover:text-red-500"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
