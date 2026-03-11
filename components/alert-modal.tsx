@@ -10,6 +10,8 @@ interface AlertModalProps {
   cancelLabel?: string;
   onClose: () => void;
   onConfirm?: () => void;
+  onCancel?: () => void;
+  closeOnConfirm?: boolean;
 }
 
 export function AlertModal({ 
@@ -18,8 +20,10 @@ export function AlertModal({
   message, 
   onClose, 
   onConfirm,
+  onCancel,
   confirmLabel = "Verstanden",
-  cancelLabel = "Abbrechen"
+  cancelLabel = "Abbrechen",
+  closeOnConfirm = true,
 }: AlertModalProps) {
   if (!isOpen) return null;
 
@@ -33,7 +37,13 @@ export function AlertModal({
         <div className="flex flex-col-reverse gap-2 bg-slate-50 p-4 sm:flex-row sm:justify-end sm:gap-3">
           {onConfirm && (
             <button
-              onClick={onClose}
+              onClick={() => {
+                if (onCancel) {
+                  onCancel();
+                  return;
+                }
+                onClose();
+              }}
               className="w-full rounded-lg px-4 py-2 font-medium text-slate-600 transition-colors hover:bg-slate-100 cursor-pointer sm:w-auto"
             >
               {cancelLabel}
@@ -42,7 +52,7 @@ export function AlertModal({
           <button
             onClick={() => {
               if (onConfirm) onConfirm();
-              onClose();
+              if (closeOnConfirm) onClose();
             }}
             className="w-full rounded-lg bg-slate-900 px-6 py-2 font-medium text-white transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 cursor-pointer sm:w-auto"
           >

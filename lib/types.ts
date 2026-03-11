@@ -1,45 +1,72 @@
-export type TabKey = "dashboard" | "kassenbuch" | "darlehen" | "ausgaben" | "verkauf" | "backups";
+export type SheetCategory = "einnahmen" | "ausgaben" | "sonstiges";
 
-export interface DarlehenKaeuferAnteil {
+export type ColumnType = "text" | "number";
+
+export interface ColumnConfig {
   id: string;
-  kaeufer: string;
-  anteil: number;
+  title: string;
+  type: ColumnType;
+  required?: boolean;
 }
 
-export interface DarlehenEntry {
-  id: number;
-  datum: string;
+export interface SheetConfig {
+  id: string;
   name: string;
-  preis: number;
-  geprueftVon: string;
-  kaeuferAnteile: DarlehenKaeuferAnteil[];
-  anzahl?: number;
+  category: SheetCategory;
+  color: string;
+  columns: ColumnConfig[];
 }
 
-export interface AusgabenEntry {
-  id: number;
-  datum: string;
-  ausgabe: string;
-  preis: number;
-  beschreibung: string;
-  geprueftVon: string;
-}
-
-export interface VerkaufEntry {
-  id: number;
-  datum: string;
-  produkt: string;
-  preis: number;
-  beschreibung: string;
-  geprueftVon: string;
+export interface SheetRow {
+  _id: number;
+  _datum: string;
+  [key: string]: string | number | undefined;
 }
 
 export interface KassenbuchEntry {
   id: number;
   datum: string;
-  typ: "Darlehen" | "Ausgabe" | "Verkauf";
+  typ: string;
   einnahmen: number;
   ausgaben: number;
   saldo: number;
-  geprueftVon: string;
+}
+
+export const SHEET_COLORS = [
+  "#e53935",
+  "#fb8c00",
+  "#fdd835",
+  "#43a047",
+  "#00bfa5",
+  "#00acc1",
+  "#1e88e5",
+  "#3949ab",
+  "#8e24aa",
+  "#d81b60",
+];
+
+export const CATEGORY_LABELS: Record<SheetCategory, string> = {
+  einnahmen: "Einnahmen",
+  ausgaben: "Ausgaben",
+  sonstiges: "Sonstiges",
+};
+
+export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
+  text: "Text",
+  number: "Zahl",
+};
+
+export const GESAMTBETRAG_COLUMN_ID = "gesamtbetrag";
+
+export function createId(prefix: string) {
+  return `${prefix}_${Math.random().toString(36).slice(2, 11)}`;
+}
+
+export function createGesamtbetragColumn(): ColumnConfig {
+  return {
+    id: GESAMTBETRAG_COLUMN_ID,
+    title: "Gesamtbetrag",
+    type: "number",
+    required: true,
+  };
 }
