@@ -151,14 +151,14 @@ function createWorksheetNameMap(sheets: SheetConfig[]) {
 }
 
 const HELP_GUIDE_PAGES = [
-  "📌 Schnellstart\n• Neues Sheet: Klick auf '+' in der Tab-Leiste.\n• Name vergeben, Kategorie wählen (Einnahmen/Ausgaben/Sonstiges), Farbe auswählen.\n• Spalten hinzufügen (Typen: Text oder Zahl).\n• Einträge erfassen: Zeile hinzufügen, Datum setzen, Werte eintragen.",
-  "🧱 Sheet-Konfiguration\n• Jedes Sheet besteht aus: id, name, category, color, columns.\n• Jede Spalte besteht aus: id, title, type (Text/Zahl), required.\n• Für Einnahmen/Ausgaben ist 'Gesamtbetrag' ein Pflichtfeld.\n• Spaltenänderungen wirken sofort auf neue/aktuelle Eingabemasken.",
-  "🧾 Dateneingabe\n• Zeilen speichern _id (global eindeutig) und _datum.\n• Zahlen werden als echte Number-Werte gespeichert.\n• Text bleibt unverändert als String.\n• Löschen von Einträgen und Sheets erfolgt mit Bestätigung.",
-  "📤 Export (Excel)\n• Export erstellt immer: _Konfiguration, Kassenbuch und je Sheet ein Tabellenblatt.\n• _Konfiguration enthält die komplette Struktur als JSON.\n• Zahlen werden als #,##0.00 formatiert.\n• Blattnamen werden automatisch bereinigt und eindeutig gemacht.",
-  "📥 Import (Excel)\n• Mit _Konfiguration: exakte Wiederherstellung von Struktur und Daten.\n• Ohne _Konfiguration: Legacy-Erkennung per Header/Typenheuristik.\n• Parser toleriert Währungssymbole, Leerzeichen, Komma/Punkt-Formate.\n• Meta- und Summenzeilen werden beim Import übersprungen.",
-  "💾 Speicher & Backups\n• Lokale Speicherung in localStorage: buchhaltung_data.\n• Beim Start kann der letzte lokale Stand geladen werden.\n• Nach Export optional Cloud-Backup über /api/backup.\n• Backup-Download lädt Datei und stellt sie direkt wieder her.",
-  "📊 Analyse\n• Dashboard und Kassenbuch aggregieren nur Einnahmen/Ausgaben.\n• Sonstiges-Sheets fließen nicht in die Finanzkennzahlen ein.\n• Kassenbuch berechnet laufenden Saldo je Eintrag.\n• Reihenfolge basiert auf globaler ID.",
-  "⌨️ Navigation dieser Hilfe\n• Nutze die Pfeile unten: ← für zurück, → für weiter.\n• Auf der ersten Seite schließt ← die Hilfe.\n• Auf der letzten Seite schließt → die Hilfe.\n• Du kannst die Hilfe jederzeit über das Info-Symbol erneut öffnen."
+  "📌 Schnellstart\n• Erstelle ein neues Sheet über '+' in der Tab-Leiste.\n• Vergib einen klaren Namen (z. B. 'Rechnungen 2026') und wähle die passende Kategorie.\n• Lege zuerst die wichtigsten Spalten an (z. B. Beschreibung, Beleg-Nr., Gesamtbetrag).\n• Danach Einträge erfassen: Datum setzen, Werte eintragen, regelmäßig speichern/exportieren.\n\n✅ Empfehlung\n• Starte mit einer einfachen Struktur und erweitere erst später. Das reduziert Fehler beim Import/Export.",
+  "🧱 Sheets und Spalten richtig aufbauen\n• Ein Sheet beschreibt einen Datenbereich: Name, Kategorie, Farbe, Spalten.\n• Spalten können 'Text' oder 'Zahl' sein – für Berechnungen immer 'Zahl' verwenden.\n• In Einnahmen- und Ausgaben-Sheets ist 'Gesamtbetrag' Pflicht, weil Analyse/Kassenbuch darauf basieren.\n• Vermeide doppelte oder sehr ähnliche Spaltennamen, damit Daten klar lesbar bleiben.\n\n⚠️ Achtung\n• Wenn du eine Spalte entfernst, sind bestehende Werte dieser Spalte in den Zeilen nicht mehr sichtbar.",
+  "🧾 Dateneingabe und Qualität\n• Jede Zeile bekommt intern eine globale ID (_id) und ein Datum (_datum).\n• Zahlen werden als echte numerische Werte gespeichert, Text als String.\n• Trage Beträge konsistent ein (bei Unsicherheit immer nur den Zahlenwert, ohne Text).\n• Nutze Löschen nur gezielt – es gibt eine Bestätigung, aber keine Mehrfach-Rückgängig-Funktion.\n\n✅ Empfehlung\n• Prüfe neue Einträge kurz im Kassenbuch oder Dashboard, um Tippfehler sofort zu sehen.",
+  "📤 Export nach Excel\n• Beim Export werden immer mehrere Blätter erzeugt: _Konfiguration, Kassenbuch, plus alle eigenen Sheets.\n• _Konfiguration enthält die komplette Struktur und ermöglicht später eine genaue Wiederherstellung.\n• Zahlen werden mit einem Zahlenformat gespeichert, damit Excel sie korrekt weiterberechnet.\n• Blattnamen werden automatisch bereinigt und bei Bedarf eindeutig umbenannt.\n\n✅ Empfehlung\n• Nutze Export als regelmäßige Sicherung (z. B. täglich oder vor größeren Änderungen).",
+  "📥 Import aus Excel\n• Mit Blatt _Konfiguration: Struktur + Daten werden vollständig rekonstruiert.\n• Ohne _Konfiguration: Das Tool versucht eine Legacy-Erkennung per Header- und Typ-Logik.\n• Formate wie Währungssymbole, Leerzeichen und Komma/Punkt werden weitgehend toleriert.\n• Summen-/Metazeilen werden beim Import ignoriert, um doppelte Auswertungen zu vermeiden.\n\n⚠️ Achtung\n• Sehr unklare oder inkonsistente Header können zu falschen Spaltentypen führen.",
+  "💾 Lokales Speichern und Backups\n• Dein aktueller Stand wird lokal im Browser gespeichert (localStorage: buchhaltung_data).\n• Beim Start kann der letzte lokale Stand geladen werden.\n• Nach dem Export kann optional ein Cloud-Backup über /api/backup angelegt werden.\n• Ein Backup-Download stellt den Stand direkt wieder in der App her.\n\n⚠️ Achtung\n• localStorage ist geräte- und browserbezogen. Browserwechsel oder Bereinigung kann den lokalen Stand entfernen.",
+  "📊 Dashboard und Kassenbuch verstehen\n• In die Finanzkennzahlen fließen nur Sheets der Kategorien Einnahmen und Ausgaben ein.\n• Sonstiges-Sheets bleiben für Dokumentation nutzbar, aber ohne Einfluss auf Salden/KPIs.\n• Das Kassenbuch berechnet den laufenden Saldo je Eintrag chronologisch nach globaler ID.\n• Unplausible Summen deuten oft auf fehlende oder falsch typisierte Gesamtbeträge hin.\n\n✅ Empfehlung\n• Wenn Zahlen unerwartet sind, zuerst die Kategorie und den Feldtyp 'Gesamtbetrag' prüfen.",
+  "🛡️ Worauf du besonders achten solltest\n• Einheitliche Benennung: gleiche Begriffe für gleiche Inhalte (z. B. immer 'Rechnungsnummer').\n• Zahlenfelder nicht als Text pflegen – sonst fehlen sie in Auswertungen.\n• Vor Import größerer Dateien immer ein Export-Backup des aktuellen Stands machen.\n• Nach strukturellen Änderungen (Spalten/Sheets) kurz einen Test-Export durchführen.\n\n✅ Best Practice\n• Arbeite in kleinen Schritten: ändern → prüfen → exportieren/backuppen.",
 ];
 
 export default function Home() {
@@ -176,8 +176,15 @@ export default function Home() {
     title: string;
     message: string;
     onConfirm?: () => void;
+    onCancel?: () => void;
+    onPrevious?: () => void;
+    onNext?: () => void;
+    previousLabel?: string;
+    nextLabel?: string;
     confirmLabel?: string;
     cancelLabel?: string;
+    closeOnConfirm?: boolean;
+    compactActions?: boolean;
   }>({ isOpen: false, title: "", message: "" });
 
   const showAlert = (title: string, message: string) => {
@@ -194,24 +201,42 @@ export default function Home() {
     setAlertConfig({ isOpen: true, title, message, onConfirm, confirmLabel, cancelLabel });
   };
 
+  const closeAlertModal = () => {
+    setAlertConfig((prev) => ({ ...prev, isOpen: false }));
+    if (!hasInitialized && alertConfig.title === "Letzten Stand laden?") {
+      setHasInitialized(true);
+    }
+  };
+
+  const openHelpPage = (pageIndex: number) => {
+    const totalPages = HELP_GUIDE_PAGES.length;
+    const normalizedPage = Math.min(Math.max(pageIndex, 0), totalPages - 1);
+
+    setAlertConfig({
+      isOpen: true,
+      title: `Informationen zur Nutzung (${normalizedPage + 1}/${totalPages})`,
+      message: HELP_GUIDE_PAGES[normalizedPage],
+      onPrevious: () => {
+        if (normalizedPage === 0) {
+          closeAlertModal();
+          return;
+        }
+        openHelpPage(normalizedPage - 1);
+      },
+      onNext: () => {
+        if (normalizedPage === totalPages - 1) {
+          closeAlertModal();
+          return;
+        }
+        openHelpPage(normalizedPage + 1);
+      },
+      previousLabel: "←",
+      nextLabel: "→",
+    });
+  };
+
   const showHelp = () => {
-    showAlert(
-      "Informationen zur Nutzung",
-      "📊 SHEETS KONFIGURIEREN\n" +
-        "• Erstelle eigene Sheets mit dem '+' Button in der Tab-Leiste.\n" +
-        "• Wähle eine Kategorie: Einnahmen, Ausgaben oder Sonstiges.\n" +
-      "• Definiere Spalten mit den Typen Text oder Zahl.\n" +
-        "• Einnahmen/Ausgaben-Sheets haben automatisch ein Pflichtfeld 'Gesamtbetrag'.\n\n" +
-        "💻 DATENSPEICHERUNG\n" +
-        "• Daten werden automatisch im lokalen Speicher gespeichert.\n" +
-        "• Nutze Import/Export für Excel-Dateien.\n\n" +
-        "💾 EXPORT & BACKUPS\n" +
-        "• Der Export speichert alle Sheets als separate Arbeitsblätter.\n" +
-        "• Die Sheet-Konfiguration wird mitgespeichert und beim Import wiederhergestellt.\n\n" +
-        "📈 ANALYSE\n" +
-        "• Dashboard und Kassenbuch aggregieren alle Einnahmen- und Ausgaben-Sheets.\n" +
-        "• Sonstiges-Sheets werden in der Finanzanalyse nicht berücksichtigt."
-    );
+    openHelpPage(0);
   };
 
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -1090,14 +1115,16 @@ export default function Home() {
         title={alertConfig.title}
         message={alertConfig.message}
         onConfirm={alertConfig.onConfirm}
+        onCancel={alertConfig.onCancel}
+        onPrevious={alertConfig.onPrevious}
+        onNext={alertConfig.onNext}
+        previousLabel={alertConfig.previousLabel}
+        nextLabel={alertConfig.nextLabel}
         confirmLabel={alertConfig.confirmLabel}
         cancelLabel={alertConfig.cancelLabel}
-        onClose={() => {
-          setAlertConfig((prev) => ({ ...prev, isOpen: false }));
-          if (!hasInitialized && alertConfig.title === "Letzten Stand laden?") {
-            setHasInitialized(true);
-          }
-        }}
+        closeOnConfirm={alertConfig.closeOnConfirm}
+        compactActions={alertConfig.compactActions}
+        onClose={closeAlertModal}
       />
     </div>
   );
