@@ -20,6 +20,18 @@ export function DynamicTable({
 }: DynamicTableProps) {
   const categoryLabel = CATEGORY_LABELS[config.category];
 
+  const totals = config.columns.reduce((acc, col) => {
+    if (col.type === "number") {
+      acc[col.id] = rows.reduce((sum, row) => {
+        const val = Number(row[col.id]) || 0;
+        return sum + val;
+      }, 0);
+    }
+    return acc;
+  }, {} as Record<string, number>);
+
+  const hasAnyTotal = Object.values(totals).some((val) => val > 0);
+
   return (
     <div className="overflow-hidden border-t border-slate-200 bg-white">
       <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/30 px-4 py-2.5">
@@ -110,6 +122,23 @@ export function DynamicTable({
                   </td>
                 </tr>
               ))
+            )}
+            {rows.length > 0 && hasAnyTotal && (
+              <tr className="bg-slate-50/50 font-bold border-t-2 border-slate-100">
+                <td className="px-4 py-3 text-xs text-slate-500 italic">
+                  GESAMT
+                </td>
+                <td className="px-4 py-3" />
+                {config.columns.map((col) => (
+                  <td
+                    key={`total-${col.id}`}
+                    className={`px-4 py-3 text-xs ${col.type === "number" ? "text-right text-slate-900" : ""}`}
+                  >
+                    {col.type === "number" ? totals[col.id].toFixed(2) : ""}
+                  </td>
+                ))}
+                <td className="px-4 py-3" />
+              </tr>
             )}
           </tbody>
         </table>
