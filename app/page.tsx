@@ -23,8 +23,6 @@ import {
   SHEET_COLORS,
 } from "@/lib/types";
 
-/* ─── Helpers ───────────────────────────────────────── */
-
 function today() {
   return new Date().toISOString().split("T")[0];
 }
@@ -1077,6 +1075,7 @@ export default function Home() {
             <DynamicTable
               config={activeSheet}
               rows={paginatedRows}
+              allRows={activeRows}
               onAdd={() => {
                 addRow(activeSheet.id);
                 setCurrentPage(1);

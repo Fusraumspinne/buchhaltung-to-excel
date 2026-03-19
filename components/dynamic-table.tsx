@@ -4,6 +4,7 @@ import { Plus, Settings, Trash2 } from "lucide-react";
 interface DynamicTableProps {
   config: SheetConfig;
   rows: SheetRow[];
+  allRows: SheetRow[];
   onAdd: () => void;
   onRemove: (id: number) => void;
   onUpdate: (rowId: number, field: string, value: string | number) => void;
@@ -13,6 +14,7 @@ interface DynamicTableProps {
 export function DynamicTable({
   config,
   rows,
+  allRows,
   onAdd,
   onRemove,
   onUpdate,
@@ -22,7 +24,7 @@ export function DynamicTable({
 
   const totals = config.columns.reduce((acc, col) => {
     if (col.type === "number") {
-      acc[col.id] = rows.reduce((sum, row) => {
+      acc[col.id] = allRows.reduce((sum, row) => {
         const val = Number(row[col.id]) || 0;
         return sum + val;
       }, 0);
