@@ -1,9 +1,9 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
-import { Download, FileSpreadsheet, Info } from "lucide-react";
+import { CheckCircle2, CloudOff, Download, FileSpreadsheet, Info, Loader2 } from "lucide-react";
 import { AlertModal } from "@/components/alert-modal";
 import { DashboardAnalytics } from "@/components/dashboard-analytics";
 import { DynamicTable } from "@/components/dynamic-table";
@@ -12,85 +12,15 @@ import { NavigationTabs } from "@/components/navigation-tabs";
 import { Pagination } from "@/components/pagination";
 import { SheetConfigModal } from "@/components/sheet-config-modal";
 import { SummaryCards } from "@/components/summary-cards";
-import { BackupList } from "@/components/backup-list";
 import {
   SheetConfig,
   SheetRow,
   KassenbuchEntry,
   GESAMTBETRAG_COLUMN_ID,
-  createId,
-  createGesamtbetragColumn,
-  SHEET_COLORS,
 } from "@/lib/types";
 
 function today() {
   return new Date().toISOString().split("T")[0];
-}
-
-function parseCellText(value: ExcelJS.CellValue | null | undefined) {
-  if (value === null || value === undefined) return "";
-  if (typeof value === "string") return value;
-  if (typeof value === "number") return String(value);
-  if (typeof value === "boolean") return value ? "true" : "false";
-  if (value instanceof Date) return value.toISOString().split("T")[0];
-  if (typeof value === "object") {
-    if ("text" in value && typeof value.text === "string") return value.text;
-    if ("richText" in value && Array.isArray(value.richText))
-      return value.richText.map((part) => part.text).join("");
-    if ("result" in value && value.result !== null && value.result !== undefined)
-      return String(value.result);
-  }
-  return String(value);
-}
-
-function parseCellNumber(value: ExcelJS.CellValue | null | undefined) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (value && typeof value === "object" && "result" in value && typeof value.result === "number")
-    return Number.isFinite(value.result) ? value.result : 0;
-
-  const raw = parseCellText(value).trim();
-  if (!raw) return 0;
-
-  const cleaned = raw.replace(/[\s\u00A0€$£]/g, "");
-  const commaCount = (cleaned.match(/,/g) || []).length;
-  const dotCount = (cleaned.match(/\./g) || []).length;
-
-  let normalized = cleaned;
-  if (commaCount > 0 && dotCount > 0) {
-    if (cleaned.lastIndexOf(",") > cleaned.lastIndexOf(".")) {
-      normalized = cleaned.replace(/\./g, "").replace(",", ".");
-    } else {
-      normalized = cleaned.replace(/,/g, "");
-    }
-  } else if (commaCount > 0 && dotCount === 0) {
-    normalized = cleaned.replace(",", ".");
-  }
-
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function isMetaRowLabel(value: ExcelJS.CellValue | null | undefined) {
-  const normalized = parseCellText(value).trim().toLowerCase();
-  return (
-    normalized === "gesamt" ||
-    normalized === "summe" ||
-    normalized === "total" ||
-    normalized.startsWith("eintr")
-  );
-}
-
-function isEffectivelyEmpty(values: Array<ExcelJS.CellValue | null | undefined>) {
-  return values.every((value) => parseCellText(value).trim() === "");
-}
-
-function normalizeHeaderLabel(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]/g, "");
 }
 
 function getNextGlobalId(data: Record<string, SheetRow[]>): number {
@@ -149,14 +79,13 @@ function createWorksheetNameMap(sheets: SheetConfig[]) {
 }
 
 const HELP_GUIDE_PAGES = [
-  "📌 Schnellstart\n• Erstelle ein neues Sheet über '+' in der Tab-Leiste.\n• Vergib einen klaren Namen (z. B. 'Rechnungen 2026') und wähle die passende Kategorie.\n• Lege zuerst die wichtigsten Spalten an (z. B. Beschreibung, Beleg-Nr., Gesamtbetrag).\n• Danach Einträge erfassen: Datum setzen, Werte eintragen, regelmäßig speichern/exportieren.\n\n✅ Empfehlung\n• Starte mit einer einfachen Struktur und erweitere erst später. Das reduziert Fehler beim Import/Export.",
+  "📌 Schnellstart\n• Erstelle ein neues Sheet über '+' in der Tab-Leiste.\n• Vergib einen klaren Namen (z. B. 'Rechnungen 2026') und wähle die passende Kategorie.\n• Lege zuerst die wichtigsten Spalten an (z. B. Beschreibung, Beleg-Nr., Gesamtbetrag).\n• Danach Einträge erfassen: Datum setzen, Werte eintragen, regelmäßig exportieren.\n\n✅ Empfehlung\n• Starte mit einer einfachen Struktur und erweitere erst später. Das reduziert Fehler beim Export.",
   "🧱 Sheets und Spalten richtig aufbauen\n• Ein Sheet beschreibt einen Datenbereich: Name, Kategorie, Farbe, Spalten.\n• Spalten können 'Text' oder 'Zahl' sein – für Berechnungen immer 'Zahl' verwenden.\n• In Einnahmen- und Ausgaben-Sheets ist 'Gesamtbetrag' Pflicht, weil Analyse/Kassenbuch darauf basieren.\n• Vermeide doppelte oder sehr ähnliche Spaltennamen, damit Daten klar lesbar bleiben.\n\n⚠️ Achtung\n• Wenn du eine Spalte entfernst, sind bestehende Werte dieser Spalte in den Zeilen nicht mehr sichtbar.",
   "🧾 Dateneingabe und Qualität\n• Jede Zeile bekommt intern eine globale ID (_id) und ein Datum (_datum).\n• Zahlen werden als echte numerische Werte gespeichert, Text als String.\n• Trage Beträge konsistent ein (bei Unsicherheit immer nur den Zahlenwert, ohne Text).\n• Nutze Löschen nur gezielt – es gibt eine Bestätigung, aber keine Mehrfach-Rückgängig-Funktion.\n\n✅ Empfehlung\n• Prüfe neue Einträge kurz im Kassenbuch oder Dashboard, um Tippfehler sofort zu sehen.",
-  "📤 Export nach Excel\n• Beim Export werden immer mehrere Blätter erzeugt: _Konfiguration, Kassenbuch, plus alle eigenen Sheets.\n• _Konfiguration enthält die komplette Struktur und ermöglicht später eine genaue Wiederherstellung.\n• Zahlen werden mit einem Zahlenformat gespeichert, damit Excel sie korrekt weiterberechnet.\n• Blattnamen werden automatisch bereinigt und bei Bedarf eindeutig umbenannt.\n\n✅ Empfehlung\n• Nutze Export als regelmäßige Sicherung (z. B. täglich oder vor größeren Änderungen).",
-  "📥 Import aus Excel\n• Mit Blatt _Konfiguration: Struktur + Daten werden vollständig rekonstruiert.\n• Ohne _Konfiguration: Das Tool versucht eine Legacy-Erkennung per Header- und Typ-Logik.\n• Formate wie Währungssymbole, Leerzeichen und Komma/Punkt werden weitgehend toleriert.\n• Summen-/Metazeilen werden beim Import ignoriert, um doppelte Auswertungen zu vermeiden.\n\n⚠️ Achtung\n• Sehr unklare oder inkonsistente Header können zu falschen Spaltentypen führen.",
-  "💾 Lokales Speichern und Backups\n• Dein aktueller Stand wird lokal im Browser gespeichert (localStorage: buchhaltung_data).\n• Beim Start kann der letzte lokale Stand geladen werden.\n• Nach dem Export kann optional ein Cloud-Backup über /api/backup angelegt werden.\n• Ein Backup-Download stellt den Stand direkt wieder in der App her.\n\n⚠️ Achtung\n• localStorage ist geräte- und browserbezogen. Browserwechsel oder Bereinigung kann den lokalen Stand entfernen.",
+  "📤 Export nach Excel\n• Beim Export wird zuerst das komplette Kassenbuch erzeugt.\n• Danach folgen alle eigenen Sheets als Tabellenblätter.\n• Zahlen werden mit einem Zahlenformat gespeichert, damit Excel sie korrekt weiterberechnet.\n• Blattnamen werden automatisch bereinigt und bei Bedarf eindeutig umbenannt.\n\n✅ Empfehlung\n• Nutze Export als zusätzliche Dateiablage, während die App selbst direkt in der Datenbank speichert.",
+  "💾 Speichern in der Datenbank\n• Sheets und Einträge werden über Supabase/Postgres gespeichert.\n• Anpassungen werden automatisch an die Datenbank übertragen.\n• Beim Start lädt die App den aktuellen Stand vom Server.\n• Es gibt keine lokale Browser-Zwischenspeicherung mehr.\n\n⚠️ Achtung\n• Wenn die Datenbank nicht erreichbar ist, werden Änderungen erst wieder zuverlässig gespeichert, sobald die Verbindung funktioniert.",
   "📊 Dashboard und Kassenbuch verstehen\n• In die Finanzkennzahlen fließen nur Sheets der Kategorien Einnahmen und Ausgaben ein.\n• Sonstiges-Sheets bleiben für Dokumentation nutzbar, aber ohne Einfluss auf Salden/KPIs.\n• Das Kassenbuch berechnet den laufenden Saldo je Eintrag chronologisch nach globaler ID.\n• Unplausible Summen deuten oft auf fehlende oder falsch typisierte Gesamtbeträge hin.\n\n✅ Empfehlung\n• Wenn Zahlen unerwartet sind, zuerst die Kategorie und den Feldtyp 'Gesamtbetrag' prüfen.",
-  "🛡️ Worauf du besonders achten solltest\n• Einheitliche Benennung: gleiche Begriffe für gleiche Inhalte (z. B. immer 'Rechnungsnummer').\n• Zahlenfelder nicht als Text pflegen – sonst fehlen sie in Auswertungen.\n• Vor Import größerer Dateien immer ein Export-Backup des aktuellen Stands machen.\n• Nach strukturellen Änderungen (Spalten/Sheets) kurz einen Test-Export durchführen.\n\n✅ Best Practice\n• Arbeite in kleinen Schritten: ändern → prüfen → exportieren/backuppen.",
+  "🛡️ Worauf du besonders achten solltest\n• Einheitliche Benennung: gleiche Begriffe für gleiche Inhalte (z. B. immer 'Rechnungsnummer').\n• Zahlenfelder nicht als Text pflegen – sonst fehlen sie in Auswertungen.\n• Nach strukturellen Änderungen (Spalten/Sheets) kurz einen Test-Export durchführen.\n\n✅ Best Practice\n• Arbeite in kleinen Schritten: ändern → prüfen → exportieren.",
 ];
 
 export default function Home() {
@@ -168,6 +97,13 @@ export default function Home() {
 
   const [configModalOpen, setConfigModalOpen] = useState(false);
   const [editingSheet, setEditingSheet] = useState<SheetConfig | undefined>();
+  const [hasInitialized, setHasInitialized] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const mutationQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingMutationCountRef = useRef(0);
+  const unmountedRef = useRef(false);
 
   const [alertConfig, setAlertConfig] = useState<{
     isOpen: boolean;
@@ -185,11 +121,11 @@ export default function Home() {
     compactActions?: boolean;
   }>({ isOpen: false, title: "", message: "" });
 
-  const showAlert = (title: string, message: string) => {
+  const showAlert = useCallback((title: string, message: string) => {
     setAlertConfig({ isOpen: true, title, message });
-  };
+  }, []);
 
-  const showConfirm = (
+  const showConfirm = useCallback((
     title: string,
     message: string,
     onConfirm: () => void,
@@ -197,14 +133,11 @@ export default function Home() {
     cancelLabel = "Abbrechen"
   ) => {
     setAlertConfig({ isOpen: true, title, message, onConfirm, confirmLabel, cancelLabel });
-  };
+  }, []);
 
-  const closeAlertModal = () => {
+  const closeAlertModal = useCallback(() => {
     setAlertConfig((prev) => ({ ...prev, isOpen: false }));
-    if (!hasInitialized && alertConfig.title === "Letzten Stand laden?") {
-      setHasInitialized(true);
-    }
-  };
+  }, []);
 
   const openHelpPage = (pageIndex: number) => {
     const totalPages = HELP_GUIDE_PAGES.length;
@@ -237,62 +170,140 @@ export default function Home() {
     openHelpPage(0);
   };
 
-  const [hasInitialized, setHasInitialized] = useState(false);
+  const requestJson = useCallback(
+    async <T,>(url: string, init?: RequestInit): Promise<T> => {
+      const response = await fetch(url, {
+        ...init,
+        credentials: "same-origin",
+        headers: {
+          ...(init?.body ? { "content-type": "application/json" } : {}),
+          ...init?.headers,
+        },
+      });
+
+      if (response.status === 401) {
+        window.location.href = "/login";
+        throw new Error("Unauthorized");
+      }
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || "Datenbankaktion fehlgeschlagen.");
+      }
+
+      return payload as T;
+    },
+    []
+  );
+
+  const queueDatabaseMutation = useCallback(
+    <T,>(task: () => Promise<T>) => {
+      pendingMutationCountRef.current += 1;
+      setIsSaving(true);
+      setSaveError("");
+
+      const queued = mutationQueueRef.current.then(task, task);
+      mutationQueueRef.current = queued.then(
+        () => undefined,
+        () => undefined
+      );
+
+      queued
+        .then(() => {
+          if (!unmountedRef.current) {
+            setLastSavedAt(new Date().toISOString());
+          }
+        })
+        .catch((error) => {
+          console.error("Database mutation failed:", error);
+          if (!unmountedRef.current) {
+            setSaveError(
+              error instanceof Error
+                ? error.message
+                : "Daten konnten nicht gespeichert werden."
+            );
+          }
+        })
+        .finally(() => {
+          pendingMutationCountRef.current = Math.max(
+            0,
+            pendingMutationCountRef.current - 1
+          );
+          if (
+            pendingMutationCountRef.current === 0 &&
+            !unmountedRef.current
+          ) {
+            setIsSaving(false);
+          }
+        });
+
+      return queued;
+    },
+    []
+  );
 
   useEffect(() => {
-    const savedData = localStorage.getItem("buchhaltung_data");
-    if (savedData) {
-      try {
-        const parsed = JSON.parse(savedData);
-        if (Array.isArray(parsed.sheets)) {
-          const hasEntries = parsed.sheets.length > 0;
-          if (!hasEntries) {
-            setHasInitialized(true);
-            return;
-          }
-
-          const date = new Date(parsed.timestamp).toLocaleString("de-DE", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-
-          showConfirm(
-            "Letzten Stand laden?",
-            `Es wurde ein gespeicherter Stand vom ${date} gefunden (${parsed.sheets.length} Sheet(s)). Möchtest du diesen laden? Dieser ist nicht der neuste aus der Cloud, sondern der zuletzte lokale Stand auf diesem Gerät.`,
-            () => {
-              setSheets(parsed.sheets || []);
-              setData(parsed.data || {});
-              setHasInitialized(true);
-            },
-            "Laden"
-          );
-        } else {
-          setHasInitialized(true);
-        }
-      } catch {
-        setHasInitialized(true);
-      }
-    } else {
-      setHasInitialized(true);
-    }
+    return () => {
+      unmountedRef.current = true;
+    };
   }, []);
 
   useEffect(() => {
-    if (!hasInitialized) return;
-    if (sheets.length === 0 && Object.keys(data).length === 0) return;
+    let cancelled = false;
 
-    localStorage.setItem(
-      "buchhaltung_data",
-      JSON.stringify({
-        sheets,
-        data,
-        timestamp: new Date().toISOString(),
-      })
-    );
-  }, [sheets, data, hasInitialized]);
+    const loadState = async () => {
+      try {
+        const response = await fetch("/api/sheets", {
+          credentials: "same-origin",
+        });
+        if (response.status === 401) {
+          window.location.href = "/login";
+          return;
+        }
+
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(
+            payload?.error || "Datenbankstand konnte nicht geladen werden."
+          );
+        }
+
+        if (cancelled) return;
+        const remoteState = payload as {
+          sheets?: SheetConfig[];
+          data?: Record<string, SheetRow[]>;
+          updatedAt?: string | null;
+        };
+        setSheets(Array.isArray(remoteState.sheets) ? remoteState.sheets : []);
+        setData(
+          remoteState.data && typeof remoteState.data === "object"
+            ? remoteState.data
+            : {}
+        );
+        setLastSavedAt(remoteState.updatedAt || null);
+        setHasInitialized(true);
+      } catch (error) {
+        console.error("Initial database load failed:", error);
+        if (cancelled) return;
+        setSaveError(
+          error instanceof Error
+            ? error.message
+            : "Datenbankstand konnte nicht geladen werden."
+        );
+        setHasInitialized(true);
+        showAlert(
+          "Datenbank nicht erreichbar",
+          "Der gespeicherte Stand konnte nicht aus Supabase geladen werden. Prüfe die Datenbank-URL und Verbindung."
+        );
+      }
+    };
+
+    void loadState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showAlert]);
 
   const handleTabChange = (newTab: string) => {
     setActiveTab(newTab);
@@ -313,6 +324,8 @@ export default function Home() {
   };
 
   const handleSaveSheet = (config: SheetConfig) => {
+    const isExisting = sheets.some((sheet) => sheet.id === config.id);
+
     setSheets((prev) => {
       const existing = prev.findIndex((s) => s.id === config.id);
       if (existing >= 0) {
@@ -331,6 +344,26 @@ export default function Home() {
     });
 
     setActiveTab(config.id);
+
+    void queueDatabaseMutation(async () => {
+      const payload = await requestJson<{ ok: boolean; sheet: SheetConfig }>(
+        isExisting
+          ? `/api/sheets/${encodeURIComponent(config.id)}`
+          : "/api/sheets",
+        {
+          method: isExisting ? "PUT" : "POST",
+          body: JSON.stringify(config),
+        }
+      );
+
+      if (payload.sheet) {
+        setSheets((prev) =>
+          prev.map((sheet) => (sheet.id === config.id ? payload.sheet : sheet))
+        );
+      }
+
+      return payload;
+    });
   };
 
   const handleDeleteSheet = (sheetId: string) => {
@@ -346,6 +379,11 @@ export default function Home() {
         });
         setActiveTab("dashboard");
         setConfigModalOpen(false);
+        void queueDatabaseMutation(() =>
+          requestJson(`/api/sheets/${encodeURIComponent(sheetId)}`, {
+            method: "DELETE",
+          })
+        );
       },
       "Löschen"
     );
@@ -369,6 +407,27 @@ export default function Home() {
       ...prev,
       [sheetId]: [newRow, ...(prev[sheetId] || [])],
     }));
+
+    void queueDatabaseMutation(async () => {
+      const payload = await requestJson<{ ok: boolean; row: SheetRow }>(
+        `/api/sheets/${encodeURIComponent(sheetId)}/rows`,
+        {
+          method: "POST",
+          body: JSON.stringify(newRow),
+        }
+      );
+
+      if (payload.row && payload.row._id !== newRow._id) {
+        setData((prev) => ({
+          ...prev,
+          [sheetId]: (prev[sheetId] || []).map((row) =>
+            row._id === newRow._id ? payload.row : row
+          ),
+        }));
+      }
+
+      return payload;
+    });
   };
 
   const removeRow = (sheetId: string, rowId: number) => {
@@ -380,6 +439,14 @@ export default function Home() {
           ...prev,
           [sheetId]: (prev[sheetId] || []).filter((r) => r._id !== rowId),
         }));
+        void queueDatabaseMutation(() =>
+          requestJson(
+            `/api/sheets/${encodeURIComponent(sheetId)}/rows/${rowId}`,
+            {
+              method: "DELETE",
+            }
+          )
+        );
       },
       "Löschen"
     );
@@ -392,6 +459,13 @@ export default function Home() {
         row._id === rowId ? { ...row, [field]: value } : row
       ),
     }));
+
+    void queueDatabaseMutation(() =>
+      requestJson(`/api/sheets/${encodeURIComponent(sheetId)}/rows/${rowId}`, {
+        method: "PUT",
+        body: JSON.stringify({ [field]: value }),
+      })
+    );
   };
 
   const kassenbuchRows = useMemo<KassenbuchEntry[]>(() => {
@@ -429,40 +503,46 @@ export default function Home() {
 
   const exportToExcel = async () => {
     try {
+      if (sheets.length === 0) {
+        showAlert("Fehler beim Export", "Es gibt noch keine Sheets zum Exportieren.");
+        return;
+      }
+
       const workbook = new ExcelJS.Workbook();
       const worksheetNameBySheetId = createWorksheetNameMap(sheets);
-
-      const configSheet = workbook.addWorksheet("_Konfiguration");
-      configSheet.getColumn(1).width = 120;
-      configSheet.getCell("A1").value = "SHEET_CONFIGURATION";
-      configSheet.getCell("A1").font = { bold: true };
-      configSheet.getCell("A2").value = JSON.stringify(
-        sheets.map((sheet) => ({
-          ...sheet,
-          exportSheetName: worksheetNameBySheetId[sheet.id],
-        }))
-      );
-      configSheet.getCell("A2").font = { size: 8 };
 
       const kassenbuchSheet = workbook.addWorksheet("Kassenbuch");
       kassenbuchSheet.columns = [
         { header: "ID", key: "id", width: 10 },
         { header: "Datum", key: "datum", width: 14 },
-        { header: "Typ", key: "typ", width: 20 },
+        { header: "Typ", key: "typ", width: 24 },
         { header: "Einnahmen", key: "einnahmen", width: 14 },
         { header: "Ausgaben", key: "ausgaben", width: 14 },
         { header: "Saldo", key: "saldo", width: 14 },
       ];
       kassenbuchRows.forEach((row) => kassenbuchSheet.addRow(row));
 
-      const kbEndRow = kassenbuchRows.length + 2;
-      const kbTotalRow = kassenbuchSheet.addRow({
-        id: "GESAMT",
-        einnahmen: { formula: `SUM(D2:D${kbEndRow})` },
-        ausgaben: { formula: `SUM(E2:E${kbEndRow})` },
-        saldo: { formula: `D${kbEndRow + 1}-E${kbEndRow + 1}` },
+      if (kassenbuchRows.length > 0) {
+        const lastDataRow = kassenbuchRows.length + 1;
+        const totalRow = kassenbuchSheet.addRow({
+          id: "GESAMT",
+          einnahmen: { formula: `SUM(D2:D${lastDataRow})` },
+          ausgaben: { formula: `SUM(E2:E${lastDataRow})` },
+          saldo: { formula: `D${lastDataRow + 1}-E${lastDataRow + 1}` },
+        });
+        totalRow.font = { bold: true };
+      }
+
+      kassenbuchSheet.getRow(1).font = { bold: true };
+      kassenbuchSheet.views = [{ state: "frozen", ySplit: 1 }];
+      kassenbuchSheet.eachRow((row, rowNum) => {
+        if (rowNum <= 1) return;
+        row.eachCell((cell, colNum) => {
+          if (colNum >= 4 && colNum <= 6) {
+            cell.numFmt = "#,##0.00";
+          }
+        });
       });
-      kbTotalRow.font = { bold: true };
 
       for (const sheet of sheets) {
         const wsName = worksheetNameBySheetId[sheet.id] || sanitizeWorksheetName(sheet.name);
@@ -484,21 +564,23 @@ export default function Home() {
         const rows = [...(data[sheet.id] || [])].sort((a, b) => a._id - b._id);
         rows.forEach((row) => ws.addRow(row));
 
-        const endRow = rows.length + 2;
-        const footerRowValues: Record<string, any> = { _id: "GESAMT" };
+        const lastDataRow = rows.length + 1;
+        const footerRowValues: Record<string, string | ExcelJS.CellFormulaValue> = {
+          _id: "GESAMT",
+        };
         let hasNumberColumn = false;
 
         sheet.columns.forEach((col, idx) => {
           if (col.type === "number") {
             const colLetter = columnNumberToLetters(idx + 3);
             footerRowValues[col.id] = {
-              formula: `SUM(${colLetter}2:${colLetter}${endRow})`,
+              formula: `SUM(${colLetter}2:${colLetter}${lastDataRow})`,
             };
             hasNumberColumn = true;
           }
         });
 
-        if (hasNumberColumn) {
+        if (hasNumberColumn && rows.length > 0) {
           const totalRow = ws.addRow(footerRowValues);
           totalRow.font = { bold: true };
           sheet.columns.forEach((col, idx) => {
@@ -508,20 +590,11 @@ export default function Home() {
           });
         }
 
-        const now = new Date();
-        const lastEdited =
-          now.toLocaleDateString("de-DE") +
-          " " +
-          now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-        const metaText = `${sheet.name} (${sheet.category}) - Erstellt: ${lastEdited}`;
-        ws.insertRow(1, [metaText]);
-        ws.mergeCells(1, 1, 1, cols.length);
-        ws.getRow(1).alignment = { wrapText: true };
-        ws.getRow(1).font = { italic: true, size: 10 };
-        ws.getRow(2).font = { bold: true };
+        ws.getRow(1).font = { bold: true };
+        ws.views = [{ state: "frozen", ySplit: 1 }];
 
         ws.eachRow((row, rowNum) => {
-          if (rowNum <= 2) return;
+          if (rowNum <= 1) return;
           row.eachCell((cell, colNum) => {
             const colConfig = sheet.columns[colNum - 3];
             if (colConfig && colConfig.type === "number") {
@@ -532,27 +605,6 @@ export default function Home() {
       }
 
       const now = new Date();
-      const lastEdited =
-        now.toLocaleDateString("de-DE") +
-        " " +
-        now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-      kassenbuchSheet.insertRow(1, [
-        `Kassenbuch - Erstellt: ${lastEdited}`,
-      ]);
-      kassenbuchSheet.mergeCells(1, 1, 1, 6);
-      kassenbuchSheet.getRow(1).alignment = { wrapText: true };
-      kassenbuchSheet.getRow(1).font = { italic: true, size: 10 };
-      kassenbuchSheet.getRow(2).font = { bold: true };
-
-      kassenbuchSheet.eachRow((row, rowNum) => {
-        if (rowNum <= 2) return;
-        row.eachCell((cell, colNum) => {
-          if (colNum >= 4 && colNum <= 6) {
-            cell.numFmt = "#,##0.00";
-          }
-        });
-      });
-
       const dateStr = now.toLocaleDateString("de-DE").replace(/\./g, "-");
       const timeStr = now
         .toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
@@ -561,41 +613,6 @@ export default function Home() {
 
       const buffer = await workbook.xlsx.writeBuffer();
       saveAs(new Blob([buffer]), filename);
-
-      showConfirm(
-        "Backup erstellen",
-        "Möchtest du diese Daten auch als Backup in der Cloud speichern?",
-        async () => {
-          try {
-            const resp = await fetch(
-              `/api/backup?filename=${encodeURIComponent(filename)}`,
-              {
-                method: "POST",
-                headers: { "content-type": "application/octet-stream" },
-                body: buffer,
-              }
-            );
-            if (!resp.ok) {
-              const d = await resp.json().catch(() => null);
-              if (d?.code === "BLOB_UNREACHABLE") {
-                showAlert("Fehler", "Backup Server aktuell nicht erreichbar.");
-              } else {
-                showAlert("Fehler", "Backup Upload fehlgeschlagen.");
-              }
-            } else {
-              showAlert(
-                "Erfolg",
-                "Backup wurde erfolgreich hochgeladen."
-              );
-              setActiveTab("backups");
-            }
-          } catch {
-            showAlert("Fehler", "Backup Upload fehlgeschlagen.");
-          }
-        },
-        "Backup erstellen",
-        "Nein"
-      );
     } catch (error) {
       console.error("Fehler beim Export:", error);
       showAlert(
@@ -605,405 +622,24 @@ export default function Home() {
     }
   };
 
-  const processWorkbook = async (workbook: ExcelJS.Workbook) => {
-    const normalizeConfigSheets = (raw: unknown): Array<SheetConfig & { exportSheetName?: string }> => {
-      if (!Array.isArray(raw)) return [];
-
-      const normalized: Array<SheetConfig & { exportSheetName?: string }> = [];
-      const usedSheetIds = new Set<string>();
-
-      for (let i = 0; i < raw.length; i++) {
-        const entry = raw[i];
-        if (!entry || typeof entry !== "object") continue;
-
-        const e = entry as Record<string, unknown>;
-        const category: SheetConfig["category"] =
-          e.category === "einnahmen" || e.category === "ausgaben" || e.category === "sonstiges"
-            ? e.category
-            : "sonstiges";
-
-        let sheetId =
-          typeof e.id === "string" && e.id.trim() ? e.id.trim() : createId("sheet");
-        while (usedSheetIds.has(sheetId)) {
-          sheetId = createId("sheet");
-        }
-        usedSheetIds.add(sheetId);
-
-        const baseName = typeof e.name === "string" && e.name.trim() ? e.name.trim() : `Sheet ${i + 1}`;
-        const color =
-          typeof e.color === "string" && e.color.trim()
-            ? e.color
-            : SHEET_COLORS[i % SHEET_COLORS.length];
-
-        const columnsRaw = Array.isArray(e.columns) ? e.columns : [];
-        const usedColumnIds = new Set<string>();
-        const columns: SheetConfig["columns"] = [];
-
-        for (let c = 0; c < columnsRaw.length; c++) {
-          const rawCol = columnsRaw[c];
-          if (!rawCol || typeof rawCol !== "object") continue;
-          const col = rawCol as Record<string, unknown>;
-          const title = typeof col.title === "string" ? col.title.trim() : "";
-          if (!title) continue;
-
-          let colId = typeof col.id === "string" && col.id.trim() ? col.id.trim() : createId("col");
-          while (usedColumnIds.has(colId)) {
-            colId = createId("col");
-          }
-          usedColumnIds.add(colId);
-
-          const type = col.type === "number" ? "number" : "text";
-          const required = Boolean(col.required);
-          columns.push({ id: colId, title, type, required });
-        }
-
-        if (category !== "sonstiges" && !columns.some((col) => col.id === GESAMTBETRAG_COLUMN_ID)) {
-          columns.unshift(createGesamtbetragColumn());
-        }
-
-        normalized.push({
-          id: sheetId,
-          name: baseName,
-          category,
-          color,
-          columns,
-          exportSheetName:
-            typeof e.exportSheetName === "string" && e.exportSheetName.trim()
-              ? e.exportSheetName.trim()
-              : undefined,
-        });
-      }
-
-      return normalized;
-    };
-
-    const configSheet = workbook.worksheets.find(
-      (ws) => ws.name === "_Konfiguration"
-    );
-
-    if (configSheet) {
-      const marker = parseCellText(configSheet.getCell("A1").value);
-      if (marker === "SHEET_CONFIGURATION") {
-        const configJson = parseCellText(configSheet.getCell("A2").value);
-        try {
-          const importedSheets = normalizeConfigSheets(JSON.parse(configJson));
-          if (importedSheets.length === 0) {
-            throw new Error("Leere oder ungültige Konfiguration in _Konfiguration.");
-          }
-          const importedData: Record<string, SheetRow[]> = {};
-
-          for (const sheetConfig of importedSheets) {
-            const preferredName = sheetConfig.exportSheetName || sheetConfig.name;
-            const ws = workbook.worksheets.find(
-              (w) => w.name === preferredName || w.name === sheetConfig.name
-            );
-            if (!ws) {
-              importedData[sheetConfig.id] = [];
-              continue;
-            }
-
-            const headerMap = new Map<string, number>();
-            ws.getRow(2).eachCell((cell, colNumber) => {
-              const norm = normalizeHeaderLabel(parseCellText(cell.value));
-              if (norm) headerMap.set(norm, colNumber);
-            });
-
-            const idCol = headerMap.get("id") || 1;
-            const datumCol = headerMap.get("datum") || 2;
-
-            const colIndices = new Map<string, number>();
-            for (const col of sheetConfig.columns) {
-              const norm = normalizeHeaderLabel(col.title);
-              const idx = headerMap.get(norm);
-              if (idx) colIndices.set(col.id, idx);
-            }
-
-            const rows: SheetRow[] = [];
-            const usedIds = new Set<number>();
-            let nextId = 1;
-
-            ws.eachRow((row, rowNum) => {
-              if (rowNum <= 2) return;
-
-              const cellValues = Array.from(
-                { length: ws.columnCount },
-                (_, i) => row.getCell(i + 1).value
-              );
-              if (isMetaRowLabel(row.getCell(idCol).value) || isEffectivelyEmpty(cellValues))
-                return;
-
-              const rawId = Number(parseCellText(row.getCell(idCol).value));
-              let id: number;
-              if (Number.isInteger(rawId) && rawId > 0 && !usedIds.has(rawId)) {
-                id = rawId;
-              } else {
-                while (usedIds.has(nextId)) nextId++;
-                id = nextId;
-              }
-              usedIds.add(id);
-              nextId = Math.max(nextId, id + 1);
-
-              const sheetRow: SheetRow = {
-                _id: id,
-                _datum: parseCellText(row.getCell(datumCol).value) || today(),
-              };
-
-              for (const col of sheetConfig.columns) {
-                const colIdx = colIndices.get(col.id);
-                if (!colIdx) continue;
-                const cellVal = row.getCell(colIdx).value;
-                if (col.type === "number") {
-                  sheetRow[col.id] = parseCellNumber(cellVal);
-                } else {
-                  sheetRow[col.id] = parseCellText(cellVal);
-                }
-              }
-
-              rows.push(sheetRow);
-            });
-
-            importedData[sheetConfig.id] = rows.sort((a, b) => b._id - a._id);
-          }
-
-          setSheets(importedSheets.map(({ exportSheetName, ...sheet }) => sheet));
-          setData(importedData);
-          setHasInitialized(true);
-          setActiveTab("dashboard");
-          return;
-        } catch {
-        }
-      }
-    }
-
-    const importedSheets: SheetConfig[] = [];
-    const importedData: Record<string, SheetRow[]> = {};
-    const usedGlobalIds = new Set<number>();
-    let nextGlobalId = 1;
-
-    const readOrCreateId = (value: ExcelJS.CellValue | null | undefined) => {
-      const candidate = Number(parseCellText(value));
-      if (Number.isInteger(candidate) && candidate > 0 && !usedGlobalIds.has(candidate)) {
-        usedGlobalIds.add(candidate);
-        nextGlobalId = Math.max(nextGlobalId, candidate + 1);
-        return candidate;
-      }
-      while (usedGlobalIds.has(nextGlobalId)) nextGlobalId++;
-      const id = nextGlobalId;
-      usedGlobalIds.add(id);
-      nextGlobalId++;
-      return id;
-    };
-
-    for (const ws of workbook.worksheets) {
-      const wsName = ws.name;
-      if (
-        wsName === "_Konfiguration" ||
-        wsName.toLowerCase() === "kassenbuch"
-      )
-        continue;
-
-      const row1Text = parseCellText(ws.getRow(1).getCell(1).value);
-      const hasMetaRow = row1Text.length > 30 || /erstellt|buchhaltung|hinweis/i.test(row1Text);
-      const headerRowNum = hasMetaRow ? 2 : 1;
-      const dataStartRow = headerRowNum + 1;
-
-      const headers: { col: number; title: string }[] = [];
-      ws.getRow(headerRowNum).eachCell((cell, colNumber) => {
-        const title = parseCellText(cell.value).trim();
-        if (title) headers.push({ col: colNumber, title });
-      });
-
-      if (headers.length === 0) continue;
-
-      const nameLower = wsName.toLowerCase();
-      let category: SheetConfig["category"] = "sonstiges";
-      if (/ausgabe|expense|kosten/i.test(nameLower)) category = "ausgaben";
-      else if (/einnahme|darlehen|verkauf|income|sale|revenue/i.test(nameLower))
-        category = "einnahmen";
-
-      const columns: SheetConfig["columns"] = [];
-      const colIndexMap = new Map<string, number>();
-
-      let idColIdx = -1;
-      let datumColIdx = -1;
-
-      for (const h of headers) {
-        const norm = normalizeHeaderLabel(h.title);
-        if (norm === "id") {
-          idColIdx = h.col;
-          continue;
-        }
-        if (norm === "datum" || norm === "date") {
-          datumColIdx = h.col;
-          continue;
-        }
-
-        let isNumeric = true;
-        let sampleCount = 0;
-        ws.eachRow((row, rowNum) => {
-          if (rowNum < dataStartRow || sampleCount >= 5) return;
-          const val = row.getCell(h.col).value;
-          if (parseCellText(val).trim() === "") return;
-          sampleCount++;
-          if (parseCellNumber(val) === 0 && parseCellText(val).trim() !== "0") {
-            isNumeric = false;
-          }
-        });
-
-        const isGesamtbetrag =
-          /gesamtbetrag|preis|betrag|summe|price|amount/i.test(h.title) &&
-          isNumeric &&
-          category !== "sonstiges";
-
-        const colId = isGesamtbetrag
-          ? GESAMTBETRAG_COLUMN_ID
-          : createId("col");
-
-        columns.push({
-          id: colId,
-          title: h.title,
-          type: isNumeric ? "number" : "text",
-          required: isGesamtbetrag,
-        });
-        colIndexMap.set(colId, h.col);
-      }
-
-      if (
-        category !== "sonstiges" &&
-        !columns.some((c) => c.id === GESAMTBETRAG_COLUMN_ID)
-      ) {
-        columns.unshift(createGesamtbetragColumn());
-      }
-
-      const sheetId = createId("sheet");
-      const colorIdx = importedSheets.length % SHEET_COLORS.length;
-
-      const sheetConfig: SheetConfig = {
-        id: sheetId,
-        name: wsName,
-        category,
-        color: SHEET_COLORS[colorIdx],
-        columns,
-      };
-
-      const rows: SheetRow[] = [];
-      ws.eachRow((row, rowNum) => {
-        if (rowNum < dataStartRow) return;
-
-        const cellValues = Array.from(
-          { length: ws.columnCount },
-          (_, i) => row.getCell(i + 1).value
-        );
-        const firstCellVal = idColIdx >= 0 ? row.getCell(idColIdx).value : row.getCell(1).value;
-        if (isMetaRowLabel(firstCellVal) || isEffectivelyEmpty(cellValues))
-          return;
-
-        const sheetRow: SheetRow = {
-          _id: readOrCreateId(idColIdx >= 0 ? row.getCell(idColIdx).value : undefined),
-          _datum:
-            datumColIdx >= 0
-              ? parseCellText(row.getCell(datumColIdx).value) || today()
-              : today(),
-        };
-
-        for (const col of columns) {
-          const idx = colIndexMap.get(col.id);
-          if (!idx) continue;
-          const cellVal = row.getCell(idx).value;
-          if (col.type === "number") {
-            sheetRow[col.id] = parseCellNumber(cellVal);
-          } else {
-            sheetRow[col.id] = parseCellText(cellVal);
-          }
-        }
-
-        rows.push(sheetRow);
-      });
-
-      importedSheets.push(sheetConfig);
-      importedData[sheetId] = rows.sort((a, b) => b._id - a._id);
-    }
-
-    if (importedSheets.length === 0) {
-      throw new Error("Keine gültigen importierbaren Arbeitsblätter gefunden.");
-    }
-
-    setSheets(importedSheets);
-    setData(importedData);
-    setHasInitialized(true);
-    setActiveTab("dashboard");
-  };
-
-  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!/\.xlsx$/i.test(file.name)) {
-      showAlert("Fehler beim Import", "Bitte wähle eine gültige .xlsx-Datei aus.");
-      e.target.value = "";
-      return;
-    }
-
-    if (file.size === 0) {
-      showAlert("Fehler beim Import", "Die gewählte Datei ist leer.");
-      e.target.value = "";
-      return;
-    }
-
-    try {
-      const workbook = new ExcelJS.Workbook();
-      const arrayBuffer = await file.arrayBuffer();
-      await workbook.xlsx.load(arrayBuffer as ArrayBuffer);
-      await processWorkbook(workbook);
-    } catch (error: unknown) {
-      console.error("Fehler beim Laden:", error);
-      showAlert(
-        "Fehler beim Import",
-        `Die Excel-Datei konnte nicht gelesen werden. ${
-          error instanceof Error ? error.message : "Bitte überprüfe das Format."
-        }`
-      );
-    }
-    e.target.value = "";
-  };
-
-  const handleRestoreBackup = async (filename: string) => {
-    try {
-      const resp = await fetch(
-        `/api/backup/download?filename=${encodeURIComponent(filename)}`
-      );
-      if (!resp.ok) {
-        const d = await resp.json().catch(() => null);
-        if (d?.code === "BLOB_UNREACHABLE") {
-          showAlert(
-            "Backup-Server nicht erreichbar",
-            "Backups sind gerade nicht verfügbar."
-          );
-          return;
-        }
-        throw new Error("Download failed");
-      }
-      const buffer = await resp.arrayBuffer();
-      saveAs(new Blob([buffer]), filename);
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(buffer);
-      await processWorkbook(workbook);
-      showAlert(
-        "Backup geladen",
-        `Das Backup "${filename}" wurde erfolgreich wiederhergestellt.`
-      );
-    } catch (error) {
-      console.error("Fehler beim Backup-Restore:", error);
-      showAlert("Fehler", "Backup konnte nicht geladen werden.");
-    }
-  };
-
   const activeSheet = sheets.find((s) => s.id === activeTab);
   const activeRows = activeSheet ? data[activeSheet.id] || [] : [];
   const paginatedRows = activeRows.slice(
     (currentPage - 1) * rowsPerPage,
     currentPage * rowsPerPage
   );
+  const saveStatusLabel = !hasInitialized
+    ? "Lädt"
+    : saveError
+      ? "Speicherfehler"
+      : isSaving
+        ? "Speichert"
+        : "Gespeichert";
+  const saveStatusTitle = saveError
+    ? saveError
+    : lastSavedAt
+      ? `Zuletzt gespeichert: ${new Date(lastSavedAt).toLocaleString("de-DE")}`
+      : "Datenbank bereit";
 
   return (
     <div className="min-h-screen bg-white p-3 text-slate-900 sm:p-4 lg:p-6 font-sans">
@@ -1019,22 +655,30 @@ export default function Home() {
               <Info className="w-4 h-4" />
             </button>
           </h1>
-          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap">
-            <label className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-600 shadow-sm transition-all hover:bg-slate-50 sm:flex-none sm:justify-start sm:py-1.5">
-              <Download className="w-3.5 h-3.5 rotate-180" /> Import
-              <input
-                type="file"
-                accept=".xlsx"
-                className="hidden"
-                onChange={handleFileUpload}
-              />
-            </label>
-            <button
-              onClick={exportToExcel}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded bg-slate-900 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-white shadow-md shadow-slate-200 transition-all hover:bg-slate-800 cursor-pointer sm:flex-none sm:justify-start sm:py-1.5"
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+            <div
+              className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${
+                saveError ? "text-red-500" : "text-slate-400"
+              }`}
+              title={saveStatusTitle}
             >
-              <Download className="w-3.5 h-3.5" /> Export
-            </button>
+              {!hasInitialized || isSaving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : saveError ? (
+                <CloudOff className="h-3.5 w-3.5" />
+              ) : (
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              )}
+              {saveStatusLabel}
+            </div>
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap">
+              <button
+                onClick={exportToExcel}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded bg-slate-900 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-white shadow-md shadow-slate-200 transition-all hover:bg-slate-800 cursor-pointer sm:flex-none sm:justify-start sm:py-1.5"
+              >
+                <Download className="w-3.5 h-3.5" /> Export
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1094,9 +738,6 @@ export default function Home() {
           </>
         )}
 
-        {activeTab === "backups" && (
-          <BackupList onRestore={handleRestoreBackup} />
-        )}
       </div>
 
       <SheetConfigModal
@@ -1128,4 +769,3 @@ export default function Home() {
     </div>
   );
 }
-

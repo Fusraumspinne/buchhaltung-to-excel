@@ -62,17 +62,6 @@ export function NavigationTabs({ activeTab, sheets, onChange, onAddSheet }: Navi
             <Plus className="w-3.5 h-3.5" />
             <span className="text-[11px] font-bold uppercase tracking-wider">Sheet</span>
           </button>
-
-          <button
-            onClick={() => onChange("backups")}
-            className={`shrink-0 rounded border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
-              activeTab === "backups"
-                ? "bg-slate-900 text-white border-slate-900 shadow-md shadow-slate-200"
-                : "bg-white hover:bg-slate-50 text-slate-500 border-slate-200"
-            }`}
-          >
-            Backups
-          </button>
         </div>
       </div>
     </div>

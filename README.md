@@ -1,20 +1,21 @@
-Cool, schlank, zuverlässig — dieses kleine Next.js-Tool hilft dir, deine Buchhaltungs-Einträge schnell zu verwalten, als Excel zu exportieren und wieder zu importieren. Ideal für einen minimalistischen Workflow: Einträge anlegen, prüfen, exportieren, analysieren.
+Cool, schlank, zuverlässig: Diese Next.js-App verwaltet Buchhaltungs-Sheets direkt in Supabase/Postgres und exportiert den aktuellen Stand als Excel-Datei mit Kassenbuch und allen eigenen Sheets.
 
-**Kernaussage:** exportiere saubere Excel-Dateien mit echten Formeln, importiere ohne Phantom-Einträge und nutze das kompakte Dashboard für schnelle Analysen (Woche / Monat / Jahr).
+**Kernaussage:** Einträge werden über geschützte API-Routen sofort in der Datenbank gespeichert. Der Excel-Export ist eine zusätzliche Dateiablage, nicht der primäre Speicher.
 
 ---
 
 **Highlights**
 
-- Sauberer Import/Export: Summenzeilen (z. B. GESAMT) werden beim Re-Import ignoriert.
-- Formeln statt Festwerte: Exportierte Summen sind Excel-Formeln, nicht harte Zahlen.
-- Datum pro Eintrag: `Darlehen`, `Ausgaben` und `Verkauf` haben jetzt ein echtes `Datum`-Feld.
-- Kompaktes Dashboard: schlichte, responsive Charts (Recharts) für Netto-Verlauf und Einnahmen vs. Ausgaben.
-- Robuster Parser: Zahlenformate (DE/EN), Währungszeichen und Formelergebnisse werden berücksichtigt.
+- Direkte Datenbank-Speicherung mit Prisma und Supabase/Postgres.
+- Cookie-geschützte Daten-API: Nur eingeloggte Nutzer können Sheets und Einträge lesen oder ändern.
+- Granulare API-Routen für Sheets und Einträge statt eines zentralen State-Endpunkts.
+- Excel-Export mit `Kassenbuch` als erstem Arbeitsblatt und danach allen eigenen Sheets.
+- Exportierte Summen sind Excel-Formeln, damit Nachbearbeitung in Excel weiterrechnet.
+- Dashboard und Kassenbuch werden aus den gespeicherten Sheet-Einträgen berechnet.
 
 ---
 
-**Schnellstart (Entwicklung)**
+**Schnellstart**
 
 1. Abhängigkeiten installieren
 
@@ -22,55 +23,133 @@ Cool, schlank, zuverlässig — dieses kleine Next.js-Tool hilft dir, deine Buch
 npm install
 ```
 
-2. Dev-Server starten
+2. Umgebung konfigurieren
+
+Lege eine `.env` an oder ergänze die vorhandene Datei:
+
+```bash
+PASSWORD=dein-login-passwort
+DATABASE_URL=postgresql://...
+```
+
+Optional kann die Runtime auch `SUPABASE_DATABASE_URL` verwenden. Für Prisma-Migrationen ist `DATABASE_URL` die klarste Empfehlung.
+
+3. Prisma Client generieren
+
+```bash
+npm run db:generate
+```
+
+4. Datenbank migrieren
+
+```bash
+npm run db:migrate
+```
+
+Für Produktion oder Vercel:
+
+```bash
+npm run db:deploy
+```
+
+5. Dev-Server starten
 
 ```bash
 npm run dev
 ```
 
-3. Öffne die App
+6. App öffnen
 
-Besuche http://localhost:3000 in deinem Browser.
+Besuche http://localhost:3000 und logge dich mit `PASSWORD` ein.
+
+---
+
+**Wichtige Scripts**
+
+- `npm run dev`: startet Next.js lokal.
+- `npm run build`: generiert Prisma Client und baut die App.
+- `npm run start`: startet den Produktionsserver nach einem Build.
+- `npm run db:generate`: generiert den Prisma Client.
+- `npm run db:migrate`: erstellt/führt lokale Prisma-Migrationen aus.
+- `npm run db:deploy`: führt vorhandene Migrationen in Produktion aus.
+
+---
+
+**Datenmodell**
+
+Das Prisma-Schema liegt in [prisma/schema.prisma](prisma/schema.prisma).
+
+- `AccountingSheet`: Sheet-Konfiguration mit Name, Kategorie, Farbe, Spalten und Sortierung.
+- `AccountingRow`: Eintrag pro Sheet mit globaler `rowId`, Datum und dynamischen Zellwerten in `values`.
+- `SheetCategory`: `einnahmen`, `ausgaben`, `sonstiges`.
+
+Migrationen liegen unter [prisma/migrations](prisma/migrations).
+
+---
+
+**API**
+
+Auth:
+
+- `POST /api/auth/login`: prüft `PASSWORD` und setzt den Login-Cookie für 30 Tage.
+- `POST /api/auth/logout`: löscht den Login-Cookie.
+
+Daten-API:
+
+- `GET /api/sheets`: lädt alle Sheets inklusive Einträge.
+- `POST /api/sheets`: erstellt ein Sheet.
+- `PUT /api/sheets/[sheetId]`: bearbeitet ein Sheet.
+- `DELETE /api/sheets/[sheetId]`: löscht ein Sheet inklusive Einträge.
+- `POST /api/sheets/[sheetId]/rows`: erstellt einen Eintrag.
+- `PUT /api/sheets/[sheetId]/rows/[rowId]`: bearbeitet einen Eintrag.
+- `DELETE /api/sheets/[sheetId]/rows/[rowId]`: löscht einen Eintrag.
+
+Alle Daten-API-Routen prüfen serverseitig den Login-Cookie. Zusätzlich blockt [middleware.ts](middleware.ts) nicht autorisierte `/api/*`-Requests mit `401 Unauthorized`, außer die Auth-Routen.
+
+---
+
+**Export**
+
+Der Export-Button erzeugt eine `.xlsx`-Datei mit:
+
+1. `Kassenbuch`: vollständige chronologische Übersicht mit Einnahmen, Ausgaben, Saldo und Summenzeile.
+2. Alle eigenen Sheets: jeweils als eigenes Arbeitsblatt mit ID, Datum, Spalten und Summenzeilen für Zahlenfelder.
+
+Es gibt keinen Excel-Import und keine lokale Browser-Zwischenspeicherung. Die Datenbank ist die Quelle der Wahrheit.
 
 ---
 
 **Wichtige Dateien**
 
-- Übersicht & UI: [app/page.tsx](app/page.tsx)
-- Import/Export-Logik und Parser: [app/page.tsx](app/page.tsx)
-- Datentypen: [lib/types.ts](lib/types.ts)
-- Tabellen-Komponenten: [components/*-table.tsx](components)
-- Dashboard (Analytics): [components/dashboard-analytics.tsx](components/dashboard-analytics.tsx)
+- [app/page.tsx](app/page.tsx): UI, Dashboard, Kassenbuch und Excel-Export.
+- [app/api/sheets/route.ts](app/api/sheets/route.ts): Laden und Erstellen von Sheets.
+- [app/api/sheets/[sheetId]/route.ts](app/api/sheets/[sheetId]/route.ts): Sheet bearbeiten/löschen.
+- [app/api/sheets/[sheetId]/rows/route.ts](app/api/sheets/[sheetId]/rows/route.ts): Einträge erstellen.
+- [app/api/sheets/[sheetId]/rows/[rowId]/route.ts](app/api/sheets/[sheetId]/rows/[rowId]/route.ts): Einträge bearbeiten/löschen.
+- [lib/db.ts](lib/db.ts): Prisma Client mit `@prisma/adapter-pg`.
+- [lib/types.ts](lib/types.ts): gemeinsame App-Typen und Sheet-Helfer.
+- [middleware.ts](middleware.ts): Zugriffsschutz für Seiten und API.
 
 ---
 
-**Wie der Import/Export funktioniert (kurz):**
+**Fehlerbehebung**
 
-- Beim Export erstellt das Tool: `Kassenbuch`, `Darlehen`, `Ausgaben`, `Verkauf` Sheets. Summen werden als Excel-Formeln gesetzt, damit Nachbearbeitung in Excel die Werte automatisch aktualisiert.
-- Beim Import werden Kopfzeilen gematcht (robust gegen Spaltenverschiebungen). Metazeilen wie `GESAMT`, `SUMME`, oder `Einträge:` und komplett leere Zeilen werden verworfen, so entstehen keine Phantom-Datensätze.
-
-Tip: Wenn du eine ältere Excel-Version ohne `Datum`-Spalte importierst, wird automatisch `heute` als Fallback gesetzt — rückwärtskompatibel.
-
----
-
-Design- und UX-Philosophie
-
-- Minimalistisch: dezente Farben, klare Ränder, übersichtliche Buttons.
-- Mobile-first: Tabellen & Dashboard skalieren, Charts sind kompakt.
-- Kein bloat: Charts nutzen `recharts` für gute Optik ohne großen Overhead.
+- Keine Daten beim Laden: Prüfe Login-Cookie, `PASSWORD`, `DATABASE_URL` und ob Migrationen gelaufen sind.
+- Speichern schlägt fehl: Prüfe die Supabase/Postgres-Verbindung und ob die Tabellen per Prisma-Migration existieren.
+- Build scheitert an Google Fonts: In eingeschränkten Netzwerkumgebungen braucht `next build` Zugriff auf `fonts.googleapis.com`.
+- Export ist leer: Prüfe, ob Sheets und Einträge in der App vorhanden sind.
 
 ---
 
-Fehlerbehebung & Hinweise
+**Aktueller Architekturstand**
 
-- Keine Einträge nach Import? Prüfe, ob die Datei echte Datenzeilen enthält (nicht nur Summenzeilen).
-- Wenn Zahlen merkwürdig formatiert sind (z. B. Währungssymbole oder NBSP), hilft der Parser — meldet mir Beispiele, wenn etwas fehlt.
-
----
-
-Contributing
-
-Wenn du Features möchtest (z. B. CSV-Import, PDF-Export, oder erweiterte Filter im Dashboard), öffne ein Issue oder erstelle einen PR — ich helfe beim Review.
+- Kein Vercel Blob.
+- Kein Backup-Tab.
+- Kein Excel-Import.
+- Kein `/api/accounting-state`.
+- Keine `lib/accounting-state.ts`.
+- Keine lokale Browser-Speicherung.
+- Prisma + Migrationen sind der Datenbankpfad.
 
 ---
 

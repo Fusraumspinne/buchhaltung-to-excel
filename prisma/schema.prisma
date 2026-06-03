@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum SheetCategory {
+  einnahmen
+  ausgaben
+  sonstiges
+}
+
+model AccountingSheet {
+  id        String          @id
+  name      String
+  category  SheetCategory
+  color     String
+  columns   Json            @default("[]")
+  sortOrder Int             @default(0) @map("sort_order")
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+  rows      AccountingRow[]
+
+  @@map("accounting_sheets")
+}
+
+model AccountingRow {
+  sheetId   String          @map("sheet_id")
+  rowId     Int             @map("row_id")
+  datum     String
+  values    Json            @default("{}")
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+  sheet     AccountingSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  @@id([sheetId, rowId])
+  @@unique([rowId])
+  @@index([sheetId])
+  @@map("accounting_rows")
+}

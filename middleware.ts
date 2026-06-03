@@ -6,6 +6,7 @@ export function middleware(request: NextRequest) {
 
   const isStaticFile = /\.[^/]+$/.test(pathname);
   const isLoginRoute = pathname === LOGIN_PATH;
+  const isApiRoute = pathname.startsWith("/api/");
   const isAuthApiRoute = pathname.startsWith("/api/auth/");
   const isFrameworkAsset = pathname.startsWith("/_next");
 
@@ -14,6 +15,10 @@ export function middleware(request: NextRequest) {
   }
 
   const authorized = isRequestAuthorized(request);
+
+  if (!authorized && isApiRoute) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
 
   if (!authorized && !isLoginRoute) {
     const loginUrl = new URL(LOGIN_PATH, request.url);
