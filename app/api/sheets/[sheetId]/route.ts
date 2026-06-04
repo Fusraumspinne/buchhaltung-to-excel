@@ -1,6 +1,6 @@
 import { Prisma, SheetCategory as PrismaSheetCategory } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
-import { isRequestAuthorized } from "@/lib/auth";
+import { getAuthenticatedProfile, unauthorizedResponse } from "@/lib/api-auth";
 import { getPrisma } from "@/lib/db";
 import {
   ColumnConfig,
@@ -29,10 +29,6 @@ type DbSheet = {
   columns: Prisma.JsonValue;
   sortOrder: number;
 };
-
-function unauthorizedResponse() {
-  return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-}
 
 function errorResponse(error: unknown, fallback: string) {
   console.error(fallback, error);
@@ -187,7 +183,8 @@ function mapSheet(sheet: DbSheet): SheetConfig {
 }
 
 export async function PUT(request: NextRequest, context: RouteContext) {
-  if (!isRequestAuthorized(request)) {
+  const profile = await getAuthenticatedProfile(request);
+  if (!profile) {
     return unauthorizedResponse();
   }
 
@@ -200,7 +197,12 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     const sheet = await prisma.$transaction(async (tx) => {
       const existing = await tx.accountingSheet.findUnique({
-        where: { id: decodedSheetId },
+        where: {
+          profileId_id: {
+            profileId: profile.id,
+            id: decodedSheetId,
+          },
+        },
         include: { rows: true },
       });
       if (!existing) throw new Error("Sheet nicht gefunden.");
@@ -209,7 +211,12 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       if (!nextSheet) throw new Error("Ungültiges Sheet.");
 
       const updated = await tx.accountingSheet.update({
-        where: { id: decodedSheetId },
+        where: {
+          profileId_id: {
+            profileId: profile.id,
+            id: decodedSheetId,
+          },
+        },
         data: {
           name: nextSheet.name,
           category: nextSheet.category as PrismaSheetCategory,
@@ -227,7 +234,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
         await tx.accountingRow.update({
           where: {
-            sheetId_rowId: {
+            profileId_sheetId_rowId: {
+              profileId: profile.id,
               sheetId: decodedSheetId,
               rowId: row.rowId,
             },
@@ -239,6 +247,11 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         });
       }
 
+      await tx.accountingProfile.update({
+        where: { id: profile.id },
+        data: { updatedAt: new Date() },
+      });
+
       return updated;
     });
 
@@ -249,16 +262,29 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 }
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
-  if (!isRequestAuthorized(request)) {
+  const profile = await getAuthenticatedProfile(request);
+  if (!profile) {
     return unauthorizedResponse();
   }
 
   const { sheetId } = await context.params;
+  const decodedSheetId = decodeURIComponent(sheetId);
 
   try {
     const prisma = getPrisma();
-    await prisma.accountingSheet.delete({
-      where: { id: decodeURIComponent(sheetId) },
+    await prisma.$transaction(async (tx) => {
+      const deleted = await tx.accountingSheet.deleteMany({
+        where: {
+          id: decodedSheetId,
+          profileId: profile.id,
+        },
+      });
+      if (deleted.count === 0) throw new Error("Sheet nicht gefunden.");
+
+      await tx.accountingProfile.update({
+        where: { id: profile.id },
+        data: { updatedAt: new Date() },
+      });
     });
     return NextResponse.json({ ok: true });
   } catch (error) {

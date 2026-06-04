@@ -1,13 +1,14 @@
 Cool, schlank, zuverlässig: Diese Next.js-App verwaltet Buchhaltungs-Sheets direkt in Supabase/Postgres und exportiert den aktuellen Stand als Excel-Datei mit Kassenbuch und allen eigenen Sheets.
 
-**Kernaussage:** Einträge werden über geschützte API-Routen sofort in der Datenbank gespeichert. Der Excel-Export ist eine zusätzliche Dateiablage, nicht der primäre Speicher.
+**Kernaussage:** Profile werden auf der Startseite verwaltet. Jedes Profil hat ein eigenes Passwort und eigene Sheets/Einträge; der Excel-Export ist eine zusätzliche Dateiablage, nicht der primäre Speicher.
 
 ---
 
 **Highlights**
 
 - Direkte Datenbank-Speicherung mit Prisma und Supabase/Postgres.
-- Cookie-geschützte Daten-API: Nur eingeloggte Nutzer können Sheets und Einträge lesen oder ändern.
+- Profilbasierte Anmeldung: Jedes Profil schützt seine eigenen Sheets per Passwort.
+- Cookie-geschützte Daten-API: API-Routen arbeiten nur im aktuell authentifizierten Profil.
 - Granulare API-Routen für Sheets und Einträge statt eines zentralen State-Endpunkts.
 - Excel-Export mit `Kassenbuch` als erstem Arbeitsblatt und danach allen eigenen Sheets.
 - Exportierte Summen sind Excel-Formeln, damit Nachbearbeitung in Excel weiterrechnet.
@@ -28,11 +29,11 @@ npm install
 Lege eine `.env` an oder ergänze die vorhandene Datei:
 
 ```bash
-PASSWORD=dein-login-passwort
 DATABASE_URL=postgresql://...
+PROFILE_SESSION_SECRET=ein-langer-zufaelliger-secret
 ```
 
-Optional kann die Runtime auch `SUPABASE_DATABASE_URL` verwenden. Für Prisma-Migrationen ist `DATABASE_URL` die klarste Empfehlung.
+`PROFILE_SESSION_SECRET` signiert die Profil-Session-Cookies.
 
 3. Prisma Client generieren
 
@@ -60,7 +61,7 @@ npm run dev
 
 6. App öffnen
 
-Besuche http://localhost:3000 und logge dich mit `PASSWORD` ein.
+Besuche http://localhost:3000, erstelle ein Profil oder öffne ein vorhandenes Profil mit seinem Passwort.
 
 ---
 
@@ -79,8 +80,9 @@ Besuche http://localhost:3000 und logge dich mit `PASSWORD` ein.
 
 Das Prisma-Schema liegt in [prisma/schema.prisma](prisma/schema.prisma).
 
-- `AccountingSheet`: Sheet-Konfiguration mit Name, Kategorie, Farbe, Spalten und Sortierung.
-- `AccountingRow`: Eintrag pro Sheet mit globaler `rowId`, Datum und dynamischen Zellwerten in `values`.
+- `AccountingProfile`: Profil mit Name und Passwort-Hash.
+- `AccountingSheet`: Sheet-Konfiguration pro Profil mit Name, Kategorie, Farbe, Spalten und Sortierung.
+- `AccountingRow`: Eintrag pro Profil/Sheet mit profilweit eindeutiger `rowId`, Datum und dynamischen Zellwerten in `values`.
 - `SheetCategory`: `einnahmen`, `ausgaben`, `sonstiges`.
 
 Migrationen liegen unter [prisma/migrations](prisma/migrations).
@@ -89,22 +91,24 @@ Migrationen liegen unter [prisma/migrations](prisma/migrations).
 
 **API**
 
-Auth:
+Profile/Auth:
 
-- `POST /api/auth/login`: prüft `PASSWORD` und setzt den Login-Cookie für 30 Tage.
-- `POST /api/auth/logout`: löscht den Login-Cookie.
+- `GET /api/profiles`: lädt alle Profile für die Startseite.
+- `POST /api/profiles`: erstellt ein Profil mit Passwort und setzt die Profil-Session.
+- `POST /api/profiles/[profileId]/login`: prüft das Profilpasswort und setzt die Profil-Session.
+- `POST /api/auth/logout`: löscht die aktive Profil-Session.
 
 Daten-API:
 
-- `GET /api/sheets`: lädt alle Sheets inklusive Einträge.
-- `POST /api/sheets`: erstellt ein Sheet.
+- `GET /api/sheets`: lädt alle Sheets inklusive Einträge des aktiven Profils.
+- `POST /api/sheets`: erstellt ein Sheet im aktiven Profil.
 - `PUT /api/sheets/[sheetId]`: bearbeitet ein Sheet.
 - `DELETE /api/sheets/[sheetId]`: löscht ein Sheet inklusive Einträge.
 - `POST /api/sheets/[sheetId]/rows`: erstellt einen Eintrag.
 - `PUT /api/sheets/[sheetId]/rows/[rowId]`: bearbeitet einen Eintrag.
 - `DELETE /api/sheets/[sheetId]/rows/[rowId]`: löscht einen Eintrag.
 
-Alle Daten-API-Routen prüfen serverseitig den Login-Cookie. Zusätzlich blockt [middleware.ts](middleware.ts) nicht autorisierte `/api/*`-Requests mit `401 Unauthorized`, außer die Auth-Routen.
+Alle Daten-API-Routen prüfen serverseitig die signierte Profil-Session und filtern jede Datenbankoperation über `profileId`. Dadurch können Sheets oder Einträge aus anderen Profilen auch nicht durch direkt aufgerufene API-URLs bearbeitet werden.
 
 ---
 
@@ -121,7 +125,8 @@ Es gibt keinen Excel-Import und keine lokale Browser-Zwischenspeicherung. Die Da
 
 **Wichtige Dateien**
 
-- [app/page.tsx](app/page.tsx): UI, Dashboard, Kassenbuch und Excel-Export.
+- [app/page.tsx](app/page.tsx): Profilübersicht, Profil-Erstellung und Profil-Login.
+- [app/profiles/[profileId]/page.tsx](app/profiles/[profileId]/page.tsx): UI, Dashboard, Kassenbuch und Excel-Export für ein Profil.
 - [app/api/sheets/route.ts](app/api/sheets/route.ts): Laden und Erstellen von Sheets.
 - [app/api/sheets/[sheetId]/route.ts](app/api/sheets/[sheetId]/route.ts): Sheet bearbeiten/löschen.
 - [app/api/sheets/[sheetId]/rows/route.ts](app/api/sheets/[sheetId]/rows/route.ts): Einträge erstellen.
@@ -134,7 +139,7 @@ Es gibt keinen Excel-Import und keine lokale Browser-Zwischenspeicherung. Die Da
 
 **Fehlerbehebung**
 
-- Keine Daten beim Laden: Prüfe Login-Cookie, `PASSWORD`, `DATABASE_URL` und ob Migrationen gelaufen sind.
+- Keine Daten beim Laden: Prüfe Profil-Session, `PROFILE_SESSION_SECRET`, `DATABASE_URL` und ob Migrationen gelaufen sind.
 - Speichern schlägt fehl: Prüfe die Supabase/Postgres-Verbindung und ob die Tabellen per Prisma-Migration existieren.
 - Build scheitert an Google Fonts: In eingeschränkten Netzwerkumgebungen braucht `next build` Zugriff auf `fonts.googleapis.com`.
 - Export ist leer: Prüfe, ob Sheets und Einträge in der App vorhanden sind.

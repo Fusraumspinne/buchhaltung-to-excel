@@ -1,6 +1,6 @@
 import { Prisma, SheetCategory as PrismaSheetCategory } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
-import { isRequestAuthorized } from "@/lib/auth";
+import { getAuthenticatedProfile, unauthorizedResponse } from "@/lib/api-auth";
 import { getPrisma } from "@/lib/db";
 import {
   ColumnConfig,
@@ -36,10 +36,6 @@ type DbRow = {
   createdAt: Date;
   updatedAt: Date;
 };
-
-function unauthorizedResponse() {
-  return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-}
 
 function errorResponse(error: unknown, fallback: string) {
   console.error(fallback, error);
@@ -157,13 +153,15 @@ function mapRow(row: DbRow): SheetRow {
 }
 
 export async function GET(request: NextRequest) {
-  if (!isRequestAuthorized(request)) {
+  const profile = await getAuthenticatedProfile(request);
+  if (!profile) {
     return unauthorizedResponse();
   }
 
   try {
     const prisma = getPrisma();
     const sheets = await prisma.accountingSheet.findMany({
+      where: { profileId: profile.id },
       orderBy: [
         { sortOrder: "asc" },
         { createdAt: "asc" },
@@ -194,33 +192,50 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, sheets: appSheets, data, updatedAt });
+    return NextResponse.json({
+      ok: true,
+      profile,
+      sheets: appSheets,
+      data,
+      updatedAt,
+    });
   } catch (error) {
     return errorResponse(error, "Datenbankstand konnte nicht geladen werden.");
   }
 }
 
 export async function POST(request: NextRequest) {
-  if (!isRequestAuthorized(request)) {
+  const profile = await getAuthenticatedProfile(request);
+  if (!profile) {
     return unauthorizedResponse();
   }
 
   try {
     const prisma = getPrisma();
     const body = await request.json().catch(() => ({}));
-    const sortOrder = await prisma.accountingSheet.count();
+    const sortOrder = await prisma.accountingSheet.count({
+      where: { profileId: profile.id },
+    });
     const sheet = normalizeSheet(body, sortOrder);
     if (!sheet) throw new Error("Ungültiges Sheet.");
 
-    const created = await prisma.accountingSheet.create({
-      data: {
-        id: sheet.id,
-        name: sheet.name,
-        category: sheet.category as PrismaSheetCategory,
-        color: sheet.color,
-        columns: toInputJson(sheet.columns),
-        sortOrder,
-      },
+    const created = await prisma.$transaction(async (tx) => {
+      const nextSheet = await tx.accountingSheet.create({
+        data: {
+          id: sheet.id,
+          profileId: profile.id,
+          name: sheet.name,
+          category: sheet.category as PrismaSheetCategory,
+          color: sheet.color,
+          columns: toInputJson(sheet.columns),
+          sortOrder,
+        },
+      });
+      await tx.accountingProfile.update({
+        where: { id: profile.id },
+        data: { updatedAt: new Date() },
+      });
+      return nextSheet;
     });
 
     return NextResponse.json({ ok: true, sheet: mapSheet(created) });

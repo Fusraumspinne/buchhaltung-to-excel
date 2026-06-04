@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
-import { isRequestAuthorized } from "@/lib/auth";
+import { getAuthenticatedProfile, unauthorizedResponse } from "@/lib/api-auth";
 import { getPrisma } from "@/lib/db";
 import { ColumnConfig, SheetRow, createId } from "@/lib/types";
 
@@ -21,10 +21,6 @@ type DbRow = {
   datum: string;
   values: Prisma.JsonValue;
 };
-
-function unauthorizedResponse() {
-  return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-}
 
 function errorResponse(error: unknown, fallback: string) {
   console.error(fallback, error);
@@ -141,7 +137,8 @@ function mapRow(row: DbRow): SheetRow {
 }
 
 export async function PUT(request: NextRequest, context: RouteContext) {
-  if (!isRequestAuthorized(request)) {
+  const profile = await getAuthenticatedProfile(request);
+  if (!profile) {
     return unauthorizedResponse();
   }
 
@@ -158,10 +155,18 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     const row = await prisma.$transaction(async (tx) => {
       const [sheet, existing] = await Promise.all([
-        tx.accountingSheet.findUnique({ where: { id: decodedSheetId } }),
+        tx.accountingSheet.findUnique({
+          where: {
+            profileId_id: {
+              profileId: profile.id,
+              id: decodedSheetId,
+            },
+          },
+        }),
         tx.accountingRow.findUnique({
           where: {
-            sheetId_rowId: {
+            profileId_sheetId_rowId: {
+              profileId: profile.id,
               sheetId: decodedSheetId,
               rowId,
             },
@@ -184,9 +189,10 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       );
       const { datum, values } = splitRow(normalizedRow);
 
-      return tx.accountingRow.update({
+      const updated = await tx.accountingRow.update({
         where: {
-          sheetId_rowId: {
+          profileId_sheetId_rowId: {
+            profileId: profile.id,
             sheetId: decodedSheetId,
             rowId,
           },
@@ -196,6 +202,13 @@ export async function PUT(request: NextRequest, context: RouteContext) {
           values: toInputJson(values),
         },
       });
+
+      await tx.accountingProfile.update({
+        where: { id: profile.id },
+        data: { updatedAt: new Date() },
+      });
+
+      return updated;
     });
 
     return NextResponse.json({ ok: true, row: mapRow(row) });
@@ -205,11 +218,13 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 }
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
-  if (!isRequestAuthorized(request)) {
+  const profile = await getAuthenticatedProfile(request);
+  if (!profile) {
     return unauthorizedResponse();
   }
 
   const { sheetId, rowId: rawRowId } = await context.params;
+  const decodedSheetId = decodeURIComponent(sheetId);
   const rowId = parseRowId(rawRowId);
   if (!rowId) {
     return NextResponse.json({ ok: false, error: "Ungültige Eintrag-ID." }, { status: 400 });
@@ -217,13 +232,20 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
   try {
     const prisma = getPrisma();
-    await prisma.accountingRow.delete({
-      where: {
-        sheetId_rowId: {
-          sheetId: decodeURIComponent(sheetId),
+    await prisma.$transaction(async (tx) => {
+      const deleted = await tx.accountingRow.deleteMany({
+        where: {
+          profileId: profile.id,
+          sheetId: decodedSheetId,
           rowId,
         },
-      },
+      });
+      if (deleted.count === 0) throw new Error("Eintrag nicht gefunden.");
+
+      await tx.accountingProfile.update({
+        where: { id: profile.id },
+        data: { updatedAt: new Date() },
+      });
     });
     return NextResponse.json({ ok: true });
   } catch (error) {

@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
-import { isRequestAuthorized } from "@/lib/auth";
+import { getAuthenticatedProfile, unauthorizedResponse } from "@/lib/api-auth";
 import { getPrisma } from "@/lib/db";
 import { ColumnConfig, SheetRow, createId } from "@/lib/types";
 
@@ -21,10 +21,6 @@ type DbRow = {
   datum: string;
   values: Prisma.JsonValue;
 };
-
-function unauthorizedResponse() {
-  return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-}
 
 function errorResponse(error: unknown, fallback: string) {
   console.error(fallback, error);
@@ -136,7 +132,8 @@ function mapRow(row: DbRow): SheetRow {
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
-  if (!isRequestAuthorized(request)) {
+  const profile = await getAuthenticatedProfile(request);
+  if (!profile) {
     return unauthorizedResponse();
   }
 
@@ -149,7 +146,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const row = await prisma.$transaction(async (tx) => {
       const sheet = await tx.accountingSheet.findUnique({
-        where: { id: decodedSheetId },
+        where: {
+          profileId_id: {
+            profileId: profile.id,
+            id: decodedSheetId,
+          },
+        },
       });
       if (!sheet) throw new Error("Sheet nicht gefunden.");
 
@@ -159,26 +161,44 @@ export async function POST(request: NextRequest, context: RouteContext) {
       let rowId = Number.isInteger(requestedId) && requestedId > 0 ? requestedId : 0;
 
       if (rowId) {
-        const existingRowId = await tx.accountingRow.findUnique({ where: { rowId } });
+        const existingRowId = await tx.accountingRow.findUnique({
+          where: {
+            profileId_rowId: {
+              profileId: profile.id,
+              rowId,
+            },
+          },
+        });
         if (existingRowId) rowId = 0;
       }
 
       if (!rowId) {
-        const max = await tx.accountingRow.aggregate({ _max: { rowId: true } });
+        const max = await tx.accountingRow.aggregate({
+          where: { profileId: profile.id },
+          _max: { rowId: true },
+        });
         rowId = (max._max.rowId || 0) + 1;
       }
 
       const normalizedRow = normalizeRow(rowCandidate, sheetColumns(sheet), rowId);
       const { datum, values } = splitRow(normalizedRow);
 
-      return tx.accountingRow.create({
+      const created = await tx.accountingRow.create({
         data: {
+          profileId: profile.id,
           sheetId: decodedSheetId,
           rowId: normalizedRow._id,
           datum,
           values: toInputJson(values),
         },
       });
+
+      await tx.accountingProfile.update({
+        where: { id: profile.id },
+        data: { updatedAt: new Date() },
+      });
+
+      return created;
     });
 
     return NextResponse.json({ ok: true, row: mapRow(row) });
