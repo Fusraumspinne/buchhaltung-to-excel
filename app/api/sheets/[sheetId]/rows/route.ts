@@ -6,7 +6,7 @@ import { ColumnConfig, SheetRow, createId } from "@/lib/types";
 
 export const runtime = "nodejs";
 
-const COLUMN_TYPES = new Set(["text", "number"]);
+const COLUMN_TYPES = new Set(["text", "number", "boolean", "date"]);
 
 interface RouteContext {
   params: Promise<{ sheetId: string }>;
@@ -65,6 +65,15 @@ function sheetColumns(sheet: DbSheet): ColumnConfig[] {
     : [];
 }
 
+function booleanValue(value: unknown) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    return ["true", "1", "on", "yes", "ja"].includes(value.trim().toLowerCase());
+  }
+  return false;
+}
+
 function normalizeRow(raw: unknown, columns: ColumnConfig[], rowId: number): SheetRow {
   const row =
     raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
@@ -85,6 +94,10 @@ function normalizeRow(raw: unknown, columns: ColumnConfig[], rowId: number): She
     if (column.type === "number") {
       const numeric = Number(value);
       normalizedRow[key] = Number.isFinite(numeric) ? numeric : 0;
+    } else if (column.type === "boolean") {
+      normalizedRow[key] = booleanValue(value);
+    } else if (column.type === "date") {
+      normalizedRow[key] = typeof value === "string" ? value.trim() : "";
     } else if (typeof value === "string" || typeof value === "number") {
       normalizedRow[key] = String(value);
     } else {
@@ -97,10 +110,14 @@ function normalizeRow(raw: unknown, columns: ColumnConfig[], rowId: number): She
 
 function splitRow(row: SheetRow) {
   const { _id, _datum, ...values } = row;
-  const cleanedValues: Record<string, string | number> = {};
+  const cleanedValues: Record<string, string | number | boolean> = {};
 
   for (const [key, value] of Object.entries(values)) {
-    if (typeof value === "string" || typeof value === "number") {
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean"
+    ) {
       cleanedValues[key] = value;
     }
   }
@@ -111,12 +128,16 @@ function splitRow(row: SheetRow) {
   };
 }
 
-function jsonObject(value: Prisma.JsonValue): Record<string, string | number | undefined> {
+function jsonObject(value: Prisma.JsonValue): Record<string, string | number | boolean | undefined> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
 
-  const result: Record<string, string | number | undefined> = {};
+  const result: Record<string, string | number | boolean | undefined> = {};
   for (const [key, entry] of Object.entries(value)) {
-    if (typeof entry === "string" || typeof entry === "number") {
+    if (
+      typeof entry === "string" ||
+      typeof entry === "number" ||
+      typeof entry === "boolean"
+    ) {
       result[key] = entry;
     }
   }

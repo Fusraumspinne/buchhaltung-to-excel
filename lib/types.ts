@@ -1,6 +1,7 @@
 export type SheetCategory = "einnahmen" | "ausgaben" | "sonstiges";
 
-export type ColumnType = "text" | "number";
+export type ColumnType = "text" | "number" | "boolean" | "date";
+export type SheetCellValue = string | number | boolean;
 
 export interface ColumnConfig {
   id: string;
@@ -20,7 +21,7 @@ export interface SheetConfig {
 export interface SheetRow {
   _id: number;
   _datum: string;
-  [key: string]: string | number | undefined;
+  [key: string]: SheetCellValue | undefined;
 }
 
 export interface KassenbuchEntry {
@@ -54,6 +55,8 @@ export const CATEGORY_LABELS: Record<SheetCategory, string> = {
 export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   text: "Text",
   number: "Zahl",
+  boolean: "Checkbox",
+  date: "Datum",
 };
 
 export const GESAMTBETRAG_COLUMN_ID = "gesamtbetrag";

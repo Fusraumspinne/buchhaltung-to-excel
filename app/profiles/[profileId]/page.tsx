@@ -12,6 +12,7 @@ import {
   Info,
   Loader2,
   LogOut,
+  Settings,
 } from "lucide-react";
 import { AlertModal } from "@/components/alert-modal";
 import { DashboardAnalytics } from "@/components/dashboard-analytics";
@@ -19,9 +20,11 @@ import { DynamicTable } from "@/components/dynamic-table";
 import { KassenbuchTable } from "@/components/kassenbuch-table";
 import { NavigationTabs } from "@/components/navigation-tabs";
 import { Pagination } from "@/components/pagination";
+import { ProfileSettingsModal } from "@/components/profile-settings-modal";
 import { SheetConfigModal } from "@/components/sheet-config-modal";
 import { SummaryCards } from "@/components/summary-cards";
 import {
+  SheetCellValue,
   SheetConfig,
   SheetRow,
   KassenbuchEntry,
@@ -87,9 +90,22 @@ function createWorksheetNameMap(sheets: SheetConfig[]) {
   return map;
 }
 
+function defaultValueForColumn(column: SheetConfig["columns"][number]): SheetCellValue {
+  if (column.type === "number") return 0;
+  if (column.type === "boolean") return false;
+  return "";
+}
+
+function excelWidthForColumn(column: SheetConfig["columns"][number]) {
+  if (column.type === "text") return 24;
+  if (column.type === "date") return 14;
+  if (column.type === "boolean") return 12;
+  return 16;
+}
+
 const HELP_GUIDE_PAGES = [
   "📌 Schnellstart\n• Erstelle ein neues Sheet über '+' in der Tab-Leiste.\n• Vergib einen klaren Namen (z. B. 'Rechnungen 2026') und wähle die passende Kategorie.\n• Lege zuerst die wichtigsten Spalten an (z. B. Beschreibung, Beleg-Nr., Gesamtbetrag).\n• Danach Einträge erfassen: Datum setzen, Werte eintragen, regelmäßig exportieren.\n\n✅ Empfehlung\n• Starte mit einer einfachen Struktur und erweitere erst später. Das reduziert Fehler beim Export.",
-  "🧱 Sheets und Spalten richtig aufbauen\n• Ein Sheet beschreibt einen Datenbereich: Name, Kategorie, Farbe, Spalten.\n• Spalten können 'Text' oder 'Zahl' sein – für Berechnungen immer 'Zahl' verwenden.\n• In Einnahmen- und Ausgaben-Sheets ist 'Gesamtbetrag' Pflicht, weil Analyse/Kassenbuch darauf basieren.\n• Vermeide doppelte oder sehr ähnliche Spaltennamen, damit Daten klar lesbar bleiben.\n\n⚠️ Achtung\n• Wenn du eine Spalte entfernst, sind bestehende Werte dieser Spalte in den Zeilen nicht mehr sichtbar.",
+  "🧱 Sheets und Spalten richtig aufbauen\n• Ein Sheet beschreibt einen Datenbereich: Name, Kategorie, Farbe, Spalten.\n• Spalten können Text, Zahl, Checkbox oder Datum sein – für Berechnungen immer Zahl verwenden.\n• In Einnahmen- und Ausgaben-Sheets ist 'Gesamtbetrag' Pflicht, weil Analyse/Kassenbuch darauf basieren.\n• Vermeide doppelte oder sehr ähnliche Spaltennamen, damit Daten klar lesbar bleiben.\n\n⚠️ Achtung\n• Wenn du eine Spalte entfernst, sind bestehende Werte dieser Spalte in den Zeilen nicht mehr sichtbar.",
   "🧾 Dateneingabe und Qualität\n• Jede Zeile bekommt intern eine profilweite ID (_id) und ein Datum (_datum).\n• Zahlen werden als echte numerische Werte gespeichert, Text als String.\n• Trage Beträge konsistent ein (bei Unsicherheit immer nur den Zahlenwert, ohne Text).\n• Nutze Löschen nur gezielt – es gibt eine Bestätigung, aber keine Mehrfach-Rückgängig-Funktion.\n\n✅ Empfehlung\n• Prüfe neue Einträge kurz im Kassenbuch oder Dashboard, um Tippfehler sofort zu sehen.",
   "📤 Export nach Excel\n• Beim Export wird zuerst das komplette Kassenbuch erzeugt.\n• Danach folgen alle eigenen Sheets als Tabellenblätter.\n• Zahlen werden mit einem Zahlenformat gespeichert, damit Excel sie korrekt weiterberechnet.\n• Blattnamen werden automatisch bereinigt und bei Bedarf eindeutig umbenannt.\n\n✅ Empfehlung\n• Nutze Export als zusätzliche Dateiablage, während die App selbst direkt in der Datenbank speichert.",
   "💾 Speichern in der Datenbank\n• Sheets und Einträge werden über Supabase/Postgres gespeichert.\n• Anpassungen werden automatisch an die Datenbank übertragen.\n• Beim Start lädt die App den aktuellen Stand vom Server.\n• Es gibt keine lokale Browser-Zwischenspeicherung mehr.\n\n⚠️ Achtung\n• Wenn die Datenbank nicht erreichbar ist, werden Änderungen erst wieder zuverlässig gespeichert, sobald die Verbindung funktioniert.",
@@ -101,17 +117,21 @@ export default function ProfilePage() {
   const router = useRouter();
   const [sheets, setSheets] = useState<SheetConfig[]>([]);
   const [data, setData] = useState<Record<string, SheetRow[]>>({});
+  const [profileId, setProfileId] = useState("");
   const [profileName, setProfileName] = useState("");
   const [activeTab, setActiveTab] = useState("dashboard");
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 10;
 
   const [configModalOpen, setConfigModalOpen] = useState(false);
+  const [profileSettingsOpen, setProfileSettingsOpen] = useState(false);
   const [editingSheet, setEditingSheet] = useState<SheetConfig | undefined>();
   const [hasInitialized, setHasInitialized] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [profileSettingsError, setProfileSettingsError] = useState("");
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const mutationQueueRef = useRef<Promise<void>>(Promise.resolve());
   const pendingMutationCountRef = useRef(0);
@@ -287,6 +307,7 @@ export default function ProfilePage() {
           data?: Record<string, SheetRow[]>;
           updatedAt?: string | null;
         };
+        setProfileId(remoteState.profile?.id || "");
         setProfileName(remoteState.profile?.name || "");
         setSheets(Array.isArray(remoteState.sheets) ? remoteState.sheets : []);
         setData(
@@ -334,6 +355,38 @@ export default function ProfilePage() {
     } finally {
       router.replace("/");
       router.refresh();
+    }
+  };
+
+  const handleSaveProfileSettings = async (payload: {
+    name: string;
+    currentPassword: string;
+    newPassword: string;
+  }) => {
+    if (!profileId) return;
+    setIsSavingProfile(true);
+    setProfileSettingsError("");
+
+    try {
+      const response = await requestJson<{
+        ok: boolean;
+        profile: { id: string; name: string };
+      }>(`/api/profiles/${encodeURIComponent(profileId)}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+
+      setProfileId(response.profile.id);
+      setProfileName(response.profile.name);
+      setProfileSettingsOpen(false);
+    } catch (error) {
+      setProfileSettingsError(
+        error instanceof Error
+          ? error.message
+          : "Profil konnte nicht gespeichert werden."
+      );
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -423,11 +476,7 @@ export default function ProfilePage() {
 
     const newRow: SheetRow = { _id: nextId, _datum: today() };
     for (const col of sheet.columns) {
-      if (col.type === "number") {
-        newRow[col.id] = 0;
-      } else {
-        newRow[col.id] = "";
-      }
+      newRow[col.id] = defaultValueForColumn(col);
     }
 
     setData((prev) => ({
@@ -479,7 +528,7 @@ export default function ProfilePage() {
     );
   };
 
-  const updateRow = (sheetId: string, rowId: number, field: string, value: string | number) => {
+  const updateRow = (sheetId: string, rowId: number, field: string, value: SheetCellValue) => {
     setData((prev) => ({
       ...prev,
       [sheetId]: (prev[sheetId] || []).map((row) =>
@@ -583,7 +632,7 @@ export default function ProfilePage() {
           cols.push({
             header: col.title,
             key: col.id,
-            width: col.type === "text" ? 24 : 16,
+            width: excelWidthForColumn(col),
           });
         }
         ws.columns = cols;
@@ -705,6 +754,16 @@ export default function ProfilePage() {
             </div>
             <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap">
               <button
+                onClick={() => {
+                  setProfileSettingsError("");
+                  setProfileSettingsOpen(true);
+                }}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-600 transition-all hover:border-slate-300 hover:bg-slate-50 cursor-pointer sm:flex-none sm:justify-start sm:py-1.5"
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Profil
+              </button>
+              <button
                 onClick={exportToExcel}
                 className="flex flex-1 items-center justify-center gap-1.5 rounded bg-slate-900 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-white shadow-md shadow-slate-200 transition-all hover:bg-slate-800 cursor-pointer sm:flex-none sm:justify-start sm:py-1.5"
               >
@@ -792,6 +851,15 @@ export default function ProfilePage() {
           editingSheet ? () => handleDeleteSheet(editingSheet.id) : undefined
         }
         initialConfig={editingSheet}
+      />
+
+      <ProfileSettingsModal
+        isOpen={profileSettingsOpen}
+        profileName={profileName}
+        isSaving={isSavingProfile}
+        error={profileSettingsError}
+        onClose={() => setProfileSettingsOpen(false)}
+        onSave={handleSaveProfileSettings}
       />
 
       <AlertModal

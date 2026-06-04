@@ -1,4 +1,4 @@
-import { SheetConfig, SheetRow, CATEGORY_LABELS } from "@/lib/types";
+import { SheetCellValue, SheetConfig, SheetRow, CATEGORY_LABELS } from "@/lib/types";
 import { Plus, Settings, Trash2 } from "lucide-react";
 
 interface DynamicTableProps {
@@ -7,7 +7,7 @@ interface DynamicTableProps {
   allRows: SheetRow[];
   onAdd: () => void;
   onRemove: (id: number) => void;
-  onUpdate: (rowId: number, field: string, value: string | number) => void;
+  onUpdate: (rowId: number, field: string, value: SheetCellValue) => void;
   onConfigure: () => void;
 }
 
@@ -66,10 +66,7 @@ export function DynamicTable({
               <th className="px-4 py-3 w-20">ID</th>
               <th className="px-4 py-3 w-32">Datum</th>
               {config.columns.map((col) => (
-                <th
-                  key={col.id}
-                  className={`px-4 py-3 ${col.type === "number" ? "text-right w-32" : ""}`}
-                >
+                <th key={col.id} className={`px-4 py-3 ${columnClass(col.type)}`}>
                   {col.title}
                   {col.required && (
                     <span className="ml-1 text-[8px] text-slate-300">*</span>
@@ -109,7 +106,7 @@ export function DynamicTable({
                   {config.columns.map((col) => (
                     <td
                       key={col.id}
-                      className={`px-2 py-2 ${col.type === "number" ? "text-right" : ""}`}
+                      className={`px-2 py-2 ${cellClass(col.type)}`}
                     >
                       {renderCellInput(col, row, onUpdate)}
                     </td>
@@ -164,17 +161,18 @@ export function DynamicTable({
 function renderCellInput(
   col: SheetConfig["columns"][number],
   row: SheetRow,
-  onUpdate: (rowId: number, field: string, value: string | number) => void
+  onUpdate: (rowId: number, field: string, value: SheetCellValue) => void
 ) {
   const value = row[col.id];
 
   switch (col.type) {
     case "number":
+      const numberValue = typeof value === "number" || typeof value === "string" ? value : "";
       return (
         <input
           type="number"
           step="0.01"
-          value={value === 0 || value === undefined || value === "" ? "" : value}
+          value={numberValue === 0 || numberValue === "" ? "" : numberValue}
           placeholder="0.00"
           onChange={(e) =>
             onUpdate(
@@ -184,6 +182,26 @@ function renderCellInput(
             )
           }
           className="w-24 rounded border border-transparent bg-transparent p-1 text-right text-xs outline-none focus:border-slate-100"
+        />
+      );
+
+    case "boolean":
+      return (
+        <input
+          type="checkbox"
+          checked={Boolean(value)}
+          onChange={(e) => onUpdate(row._id, col.id, e.target.checked)}
+          className="h-4 w-4 rounded border-slate-300 text-slate-900 accent-slate-900 cursor-pointer"
+        />
+      );
+
+    case "date":
+      return (
+        <input
+          type="date"
+          value={typeof value === "string" ? value : ""}
+          onChange={(e) => onUpdate(row._id, col.id, e.target.value)}
+          className="w-full rounded border border-transparent bg-transparent p-1 text-xs outline-none focus:border-slate-100 cursor-pointer"
         />
       );
 
@@ -198,4 +216,17 @@ function renderCellInput(
         />
       );
   }
+}
+
+function columnClass(type: SheetConfig["columns"][number]["type"]) {
+  if (type === "number") return "w-32 text-right";
+  if (type === "boolean") return "w-28 text-center";
+  if (type === "date") return "w-36";
+  return "";
+}
+
+function cellClass(type: SheetConfig["columns"][number]["type"]) {
+  if (type === "number") return "text-right";
+  if (type === "boolean") return "text-center";
+  return "";
 }

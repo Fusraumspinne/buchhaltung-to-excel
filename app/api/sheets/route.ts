@@ -15,7 +15,7 @@ import {
 export const runtime = "nodejs";
 
 const SHEET_CATEGORIES = new Set(["einnahmen", "ausgaben", "sonstiges"]);
-const COLUMN_TYPES = new Set(["text", "number"]);
+const COLUMN_TYPES = new Set(["text", "number", "boolean", "date"]);
 
 type DbSheet = {
   id: string;
@@ -52,12 +52,16 @@ function toInputJson(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value ?? {})) as Prisma.InputJsonValue;
 }
 
-function jsonObject(value: Prisma.JsonValue): Record<string, string | number | undefined> {
+function jsonObject(value: Prisma.JsonValue): Record<string, string | number | boolean | undefined> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
 
-  const result: Record<string, string | number | undefined> = {};
+  const result: Record<string, string | number | boolean | undefined> = {};
   for (const [key, entry] of Object.entries(value)) {
-    if (typeof entry === "string" || typeof entry === "number") {
+    if (
+      typeof entry === "string" ||
+      typeof entry === "number" ||
+      typeof entry === "boolean"
+    ) {
       result[key] = entry;
     }
   }

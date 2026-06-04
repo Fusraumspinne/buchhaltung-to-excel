@@ -8,7 +8,9 @@ Cool, schlank, zuverlässig: Diese Next.js-App verwaltet Buchhaltungs-Sheets dir
 
 - Direkte Datenbank-Speicherung mit Prisma und Supabase/Postgres.
 - Profilbasierte Anmeldung: Jedes Profil schützt seine eigenen Sheets per Passwort.
+- Profile können umbenannt werden; Passwörter lassen sich mit aktuellem Passwort ändern.
 - Cookie-geschützte Daten-API: API-Routen arbeiten nur im aktuell authentifizierten Profil.
+- Spaltentypen für Text, Zahl, Checkbox und Datum.
 - Granulare API-Routen für Sheets und Einträge statt eines zentralen State-Endpunkts.
 - Excel-Export mit `Kassenbuch` als erstem Arbeitsblatt und danach allen eigenen Sheets.
 - Exportierte Summen sind Excel-Formeln, damit Nachbearbeitung in Excel weiterrechnet.
@@ -81,7 +83,7 @@ Besuche http://localhost:3000, erstelle ein Profil oder öffne ein vorhandenes P
 Das Prisma-Schema liegt in [prisma/schema.prisma](prisma/schema.prisma).
 
 - `AccountingProfile`: Profil mit Name und Passwort-Hash.
-- `AccountingSheet`: Sheet-Konfiguration pro Profil mit Name, Kategorie, Farbe, Spalten und Sortierung.
+- `AccountingSheet`: Sheet-Konfiguration pro Profil mit Name, Kategorie, Farbe, Spalten, Spaltentypen und Sortierung.
 - `AccountingRow`: Eintrag pro Profil/Sheet mit profilweit eindeutiger `rowId`, Datum und dynamischen Zellwerten in `values`.
 - `SheetCategory`: `einnahmen`, `ausgaben`, `sonstiges`.
 
@@ -95,6 +97,7 @@ Profile/Auth:
 
 - `GET /api/profiles`: lädt alle Profile für die Startseite.
 - `POST /api/profiles`: erstellt ein Profil mit Passwort und setzt die Profil-Session.
+- `PATCH /api/profiles/[profileId]`: benennt das aktive Profil um oder ändert sein Passwort.
 - `POST /api/profiles/[profileId]/login`: prüft das Profilpasswort und setzt die Profil-Session.
 - `POST /api/auth/logout`: löscht die aktive Profil-Session.
 
