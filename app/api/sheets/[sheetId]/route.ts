@@ -144,6 +144,7 @@ function normalizeRow(raw: unknown, columns: ColumnConfig[]): SheetRow {
       typeof row._datum === "string" && row._datum.trim()
         ? row._datum.trim()
         : new Date().toISOString().split("T")[0],
+    _locked: booleanValue(row._locked),
   };
 
   for (const [key, value] of Object.entries(row)) {

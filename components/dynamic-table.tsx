@@ -1,5 +1,5 @@
 import { SheetCellValue, SheetConfig, SheetRow, CATEGORY_LABELS } from "@/lib/types";
-import { Plus, Settings, Trash2 } from "lucide-react";
+import { Lock, Plus, Settings, Trash2, Unlock } from "lucide-react";
 
 interface DynamicTableProps {
   config: SheetConfig;
@@ -7,6 +7,7 @@ interface DynamicTableProps {
   allRows: SheetRow[];
   onAdd: () => void;
   onRemove: (id: number) => void;
+  onToggleLock: (id: number, locked: boolean) => void;
   onUpdate: (rowId: number, field: string, value: SheetCellValue) => void;
   onConfigure: () => void;
 }
@@ -17,6 +18,7 @@ export function DynamicTable({
   allRows,
   onAdd,
   onRemove,
+  onToggleLock,
   onUpdate,
   onConfigure,
 }: DynamicTableProps) {
@@ -73,7 +75,7 @@ export function DynamicTable({
                   )}
                 </th>
               ))}
-              <th className="px-4 py-3 w-10 text-center" />
+              <th className="px-4 py-3 w-20 text-center" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -87,40 +89,68 @@ export function DynamicTable({
                 </td>
               </tr>
             ) : (
-              rows.map((row) => (
-                <tr
-                  key={row._id}
-                  className="group hover:bg-slate-50/40 transition-colors"
-                >
-                  <td className="px-4 py-3 text-xs font-bold text-slate-600">
-                    #{row._id}
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="date"
-                      value={row._datum}
-                      onChange={(e) => onUpdate(row._id, "_datum", e.target.value)}
-                      className="w-full bg-transparent p-1 text-xs border border-transparent focus:border-slate-100 rounded outline-none cursor-pointer"
-                    />
-                  </td>
-                  {config.columns.map((col) => (
-                    <td
-                      key={col.id}
-                      className={`px-2 py-2 ${cellClass(col.type)}`}
-                    >
-                      {renderCellInput(col, row, onUpdate)}
+              rows.map((row) => {
+                const isLocked = Boolean(row._locked);
+
+                return (
+                  <tr
+                    key={row._id}
+                    className={`group transition-colors ${
+                      isLocked
+                        ? "bg-slate-50/60 text-slate-400"
+                        : "hover:bg-slate-50/40"
+                    }`}
+                  >
+                    <td className="px-4 py-3 text-xs font-bold text-slate-600">
+                      #{row._id}
                     </td>
-                  ))}
-                  <td className="px-2 py-2 text-center">
-                    <button
-                      onClick={() => onRemove(row._id)}
-                      className="p-1 text-slate-300 transition-all cursor-pointer hover:text-red-500"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </td>
-                </tr>
-              ))
+                    <td className="px-2 py-2">
+                      <input
+                        type="date"
+                        value={row._datum}
+                        disabled={isLocked}
+                        onChange={(e) => onUpdate(row._id, "_datum", e.target.value)}
+                        className="w-full rounded border border-transparent bg-transparent p-1 text-xs outline-none focus:border-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                      />
+                    </td>
+                    {config.columns.map((col) => (
+                      <td
+                        key={col.id}
+                        className={`px-2 py-2 ${cellClass(col.type)}`}
+                      >
+                        {renderCellInput(col, row, onUpdate, isLocked)}
+                      </td>
+                    ))}
+                    <td className="px-2 py-2">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => onRemove(row._id)}
+                          disabled={isLocked}
+                          title={isLocked ? "Zum Löschen erst entsperren" : "Eintrag löschen"}
+                          className="p-1 text-slate-300 transition-all hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:text-slate-300 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => onToggleLock(row._id, !isLocked)}
+                          title={isLocked ? "Eintrag entsperren" : "Eintrag sperren"}
+                          className={`p-1 transition-all cursor-pointer ${
+                            isLocked
+                              ? "text-slate-700 hover:text-slate-900"
+                              : "text-slate-300 hover:text-slate-600"
+                          }`}
+                        >
+                          {isLocked ? (
+                            <Lock className="w-3.5 h-3.5" />
+                          ) : (
+                            <Unlock className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
             {rows.length > 0 && hasAnyTotal && (
               <tr className="bg-slate-50/50 font-bold border-t-2 border-slate-100">
@@ -161,7 +191,8 @@ export function DynamicTable({
 function renderCellInput(
   col: SheetConfig["columns"][number],
   row: SheetRow,
-  onUpdate: (rowId: number, field: string, value: SheetCellValue) => void
+  onUpdate: (rowId: number, field: string, value: SheetCellValue) => void,
+  isLocked: boolean
 ) {
   const value = row[col.id];
 
@@ -174,6 +205,7 @@ function renderCellInput(
           step="0.01"
           value={numberValue === 0 || numberValue === "" ? "" : numberValue}
           placeholder="0.00"
+          disabled={isLocked}
           onChange={(e) =>
             onUpdate(
               row._id,
@@ -181,7 +213,7 @@ function renderCellInput(
               e.target.value === "" ? 0 : Number(e.target.value)
             )
           }
-          className="w-24 rounded border border-transparent bg-transparent p-1 text-right text-xs outline-none focus:border-slate-100"
+          className="w-24 rounded border border-transparent bg-transparent p-1 text-right text-xs outline-none focus:border-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
         />
       );
 
@@ -190,8 +222,9 @@ function renderCellInput(
         <input
           type="checkbox"
           checked={Boolean(value)}
+          disabled={isLocked}
           onChange={(e) => onUpdate(row._id, col.id, e.target.checked)}
-          className="h-4 w-4 rounded border-slate-300 text-slate-900 accent-slate-900 cursor-pointer"
+          className="h-4 w-4 rounded border-slate-300 text-slate-900 accent-slate-900 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
         />
       );
 
@@ -200,8 +233,9 @@ function renderCellInput(
         <input
           type="date"
           value={typeof value === "string" ? value : ""}
+          disabled={isLocked}
           onChange={(e) => onUpdate(row._id, col.id, e.target.value)}
-          className="w-full rounded border border-transparent bg-transparent p-1 text-xs outline-none focus:border-slate-100 cursor-pointer"
+          className="w-full rounded border border-transparent bg-transparent p-1 text-xs outline-none focus:border-slate-100 cursor-pointer disabled:cursor-not-allowed disabled:text-slate-400"
         />
       );
 
@@ -211,8 +245,9 @@ function renderCellInput(
           type="text"
           value={String(value ?? "")}
           placeholder={col.title}
+          disabled={isLocked}
           onChange={(e) => onUpdate(row._id, col.id, e.target.value)}
-          className="w-full bg-transparent p-1 text-xs border border-transparent focus:border-slate-100 rounded outline-none"
+          className="w-full bg-transparent p-1 text-xs border border-transparent focus:border-slate-100 rounded outline-none disabled:cursor-not-allowed disabled:text-slate-400"
         />
       );
   }

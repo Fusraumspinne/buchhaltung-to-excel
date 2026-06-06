@@ -105,6 +105,7 @@ function normalizeRow(raw: unknown, columns: ColumnConfig[], rowId: number): She
       typeof row._datum === "string" && row._datum.trim()
         ? row._datum.trim()
         : new Date().toISOString().split("T")[0],
+    _locked: booleanValue(row._locked),
   };
 
   for (const [key, value] of Object.entries(row)) {
@@ -198,11 +199,20 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
       const patch =
         body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+      const currentValues = jsonObject(existing.values);
       const currentRow = {
         _id: existing.rowId,
         _datum: existing.datum,
-        ...jsonObject(existing.values),
+        ...currentValues,
       };
+      const patchKeys = Object.keys(patch).filter((key) => key !== "_id");
+      if (
+        Boolean(currentValues._locked) &&
+        patchKeys.some((key) => key !== "_locked")
+      ) {
+        throw new Error("Eintrag ist gesperrt. Entsperre ihn zuerst.");
+      }
+
       const normalizedRow = normalizeRow(
         { ...currentRow, ...patch },
         sheetColumns(sheet),
@@ -254,14 +264,29 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     const prisma = getPrisma();
     await prisma.$transaction(async (tx) => {
-      const deleted = await tx.accountingRow.deleteMany({
+      const existing = await tx.accountingRow.findUnique({
         where: {
-          profileId: profile.id,
-          sheetId: decodedSheetId,
-          rowId,
+          profileId_sheetId_rowId: {
+            profileId: profile.id,
+            sheetId: decodedSheetId,
+            rowId,
+          },
         },
       });
-      if (deleted.count === 0) throw new Error("Eintrag nicht gefunden.");
+      if (!existing) throw new Error("Eintrag nicht gefunden.");
+      if (Boolean(jsonObject(existing.values)._locked)) {
+        throw new Error("Eintrag ist gesperrt. Entsperre ihn zuerst.");
+      }
+
+      await tx.accountingRow.delete({
+        where: {
+          profileId_sheetId_rowId: {
+            profileId: profile.id,
+            sheetId: decodedSheetId,
+            rowId,
+          },
+        },
+      });
 
       await tx.accountingProfile.update({
         where: { id: profile.id },

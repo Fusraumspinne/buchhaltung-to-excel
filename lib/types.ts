@@ -21,6 +21,7 @@ export interface SheetConfig {
 export interface SheetRow {
   _id: number;
   _datum: string;
+  _locked?: boolean;
   [key: string]: SheetCellValue | undefined;
 }
 

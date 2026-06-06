@@ -474,7 +474,7 @@ export default function ProfilePage() {
     const sheet = sheets.find((s) => s.id === sheetId);
     if (!sheet) return;
 
-    const newRow: SheetRow = { _id: nextId, _datum: today() };
+    const newRow: SheetRow = { _id: nextId, _datum: today(), _locked: false };
     for (const col of sheet.columns) {
       newRow[col.id] = defaultValueForColumn(col);
     }
@@ -507,6 +507,9 @@ export default function ProfilePage() {
   };
 
   const removeRow = (sheetId: string, rowId: number) => {
+    const currentRow = data[sheetId]?.find((row) => row._id === rowId);
+    if (currentRow?._locked) return;
+
     showConfirm(
       "Eintrag löschen",
       "Möchtest du diesen Eintrag wirklich löschen?",
@@ -529,6 +532,9 @@ export default function ProfilePage() {
   };
 
   const updateRow = (sheetId: string, rowId: number, field: string, value: SheetCellValue) => {
+    const currentRow = data[sheetId]?.find((row) => row._id === rowId);
+    if (currentRow?._locked && field !== "_locked") return;
+
     setData((prev) => ({
       ...prev,
       [sheetId]: (prev[sheetId] || []).map((row) =>
@@ -828,6 +834,9 @@ export default function ProfilePage() {
                 setCurrentPage(1);
               }}
               onRemove={(id) => removeRow(activeSheet.id, id)}
+              onToggleLock={(id, locked) =>
+                updateRow(activeSheet.id, id, "_locked", locked)
+              }
               onUpdate={(rowId, field, value) =>
                 updateRow(activeSheet.id, rowId, field, value)
               }
