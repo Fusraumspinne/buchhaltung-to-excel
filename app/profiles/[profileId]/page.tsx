@@ -7,6 +7,7 @@ import { saveAs } from "file-saver";
 import {
   CheckCircle2,
   CloudOff,
+  DatabaseBackup,
   Download,
   FileSpreadsheet,
   Info,
@@ -15,6 +16,7 @@ import {
   Settings,
 } from "lucide-react";
 import { AlertModal } from "@/components/alert-modal";
+import { BackupModal } from "@/components/backup-modal";
 import { DashboardAnalytics } from "@/components/dashboard-analytics";
 import { DynamicTable } from "@/components/dynamic-table";
 import { KassenbuchTable } from "@/components/kassenbuch-table";
@@ -29,6 +31,8 @@ import {
   SheetRow,
   KassenbuchEntry,
   GESAMTBETRAG_COLUMN_ID,
+  BackupSnapshot,
+  BackupSummary,
 } from "@/lib/types";
 
 function today() {
@@ -103,6 +107,24 @@ function excelWidthForColumn(column: SheetConfig["columns"][number]) {
   return 16;
 }
 
+function sanitizeFilePart(value: string) {
+  return value
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
+function backupFilename(backup: BackupSummary) {
+  const date = new Date(backup.createdAt);
+  const datePart = Number.isNaN(date.getTime())
+    ? "backup"
+    : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}_${String(date.getHours()).padStart(2, "0")}-${String(date.getMinutes()).padStart(2, "0")}`;
+  const labelPart = sanitizeFilePart(backup.label || "backup");
+
+  return `buchhaltung_${labelPart || "backup"}_${datePart}.json`;
+}
+
 const HELP_GUIDE_PAGES = [
   "📌 Schnellstart\n• Erstelle ein neues Sheet über '+' in der Tab-Leiste.\n• Vergib einen klaren Namen (z. B. 'Rechnungen 2026') und wähle die passende Kategorie.\n• Lege zuerst die wichtigsten Spalten an (z. B. Beschreibung, Beleg-Nr., Gesamtbetrag).\n• Danach Einträge erfassen: Datum setzen, Werte eintragen, regelmäßig exportieren.\n\n✅ Empfehlung\n• Starte mit einer einfachen Struktur und erweitere erst später. Das reduziert Fehler beim Export.",
   "🧱 Sheets und Spalten richtig aufbauen\n• Ein Sheet beschreibt einen Datenbereich: Name, Kategorie, Farbe, Spalten.\n• Spalten können Text, Zahl, Checkbox oder Datum sein – für Berechnungen immer Zahl verwenden.\n• In Einnahmen- und Ausgaben-Sheets ist 'Gesamtbetrag' Pflicht, weil Analyse/Kassenbuch darauf basieren.\n• Vermeide doppelte oder sehr ähnliche Spaltennamen, damit Daten klar lesbar bleiben.\n\n⚠️ Achtung\n• Wenn du eine Spalte entfernst, sind bestehende Werte dieser Spalte in den Zeilen nicht mehr sichtbar.",
@@ -124,14 +146,21 @@ export default function ProfilePage() {
   const rowsPerPage = 10;
 
   const [configModalOpen, setConfigModalOpen] = useState(false);
+  const [backupModalOpen, setBackupModalOpen] = useState(false);
   const [profileSettingsOpen, setProfileSettingsOpen] = useState(false);
   const [editingSheet, setEditingSheet] = useState<SheetConfig | undefined>();
   const [hasInitialized, setHasInitialized] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isLoadingBackups, setIsLoadingBackups] = useState(false);
+  const [isCreatingBackup, setIsCreatingBackup] = useState(false);
+  const [restoringBackupId, setRestoringBackupId] = useState<string | null>(null);
+  const [deletingBackupId, setDeletingBackupId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState("");
   const [profileSettingsError, setProfileSettingsError] = useState("");
+  const [backupError, setBackupError] = useState("");
+  const [backups, setBackups] = useState<BackupSummary[]>([]);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const mutationQueueRef = useRef<Promise<void>>(Promise.resolve());
   const pendingMutationCountRef = useRef(0);
@@ -273,6 +302,170 @@ export default function ProfilePage() {
     },
     []
   );
+
+  const loadBackups = useCallback(async () => {
+    setIsLoadingBackups(true);
+    setBackupError("");
+
+    try {
+      const payload = await requestJson<{
+        ok: boolean;
+        backups: BackupSummary[];
+      }>("/api/backups");
+      setBackups(Array.isArray(payload.backups) ? payload.backups : []);
+    } catch (error) {
+      setBackupError(
+        error instanceof Error
+          ? error.message
+          : "Backups konnten nicht geladen werden."
+      );
+    } finally {
+      setIsLoadingBackups(false);
+    }
+  }, [requestJson]);
+
+  const openBackupModal = () => {
+    setBackupModalOpen(true);
+    void loadBackups();
+  };
+
+  const handleCreateBackup = async (label: string) => {
+    setIsCreatingBackup(true);
+    setBackupError("");
+
+    try {
+      await mutationQueueRef.current;
+      const payload = await requestJson<{
+        ok: boolean;
+        backup: BackupSummary;
+      }>("/api/backups", {
+        method: "POST",
+        body: JSON.stringify({ label }),
+      });
+      setBackups((prev) => [payload.backup, ...prev].slice(0, 25));
+      void loadBackups();
+    } catch (error) {
+      setBackupError(
+        error instanceof Error
+          ? error.message
+          : "Backup konnte nicht erstellt werden."
+      );
+    } finally {
+      setIsCreatingBackup(false);
+    }
+  };
+
+  const handleDownloadBackup = async (backupId: string) => {
+    setBackupError("");
+
+    try {
+      const payload = await requestJson<{
+        ok: boolean;
+        backup: BackupSummary;
+        snapshot: BackupSnapshot;
+      }>(`/api/backups/${encodeURIComponent(backupId)}`);
+
+      const blob = new Blob([JSON.stringify(payload.snapshot, null, 2)], {
+        type: "application/json;charset=utf-8",
+      });
+      saveAs(blob, backupFilename(payload.backup));
+    } catch (error) {
+      setBackupError(
+        error instanceof Error
+          ? error.message
+          : "Backup konnte nicht heruntergeladen werden."
+      );
+    }
+  };
+
+  const restoreBackup = async (backupId: string) => {
+    setRestoringBackupId(backupId);
+    setBackupError("");
+
+    try {
+      await mutationQueueRef.current;
+      const payload = await requestJson<{
+        ok: boolean;
+        safetyBackup: BackupSummary;
+        state: {
+          profile?: { id: string; name: string };
+          sheets?: SheetConfig[];
+          data?: Record<string, SheetRow[]>;
+          updatedAt?: string | null;
+        };
+      }>(`/api/backups/${encodeURIComponent(backupId)}/restore`, {
+        method: "POST",
+      });
+
+      setProfileId(payload.state.profile?.id || profileId);
+      setProfileName(payload.state.profile?.name || profileName);
+      setSheets(Array.isArray(payload.state.sheets) ? payload.state.sheets : []);
+      setData(
+        payload.state.data && typeof payload.state.data === "object"
+          ? payload.state.data
+          : {}
+      );
+      setActiveTab("dashboard");
+      setCurrentPage(1);
+      setLastSavedAt(payload.state.updatedAt || new Date().toISOString());
+      setBackupModalOpen(false);
+      void loadBackups();
+      showAlert(
+        "Backup wiederhergestellt",
+        "Der vorherige Stand wurde automatisch als Sicherheitsbackup gespeichert."
+      );
+    } catch (error) {
+      setBackupError(
+        error instanceof Error
+          ? error.message
+          : "Backup konnte nicht wiederhergestellt werden."
+      );
+    } finally {
+      setRestoringBackupId(null);
+    }
+  };
+
+  const handleRestoreBackup = (backupId: string) => {
+    showConfirm(
+      "Backup wiederherstellen",
+      "Der aktuelle Stand wird durch dieses Backup ersetzt. Vorher wird automatisch ein Sicherheitsbackup erstellt.",
+      () => {
+        void restoreBackup(backupId);
+      },
+      "Wiederherstellen"
+    );
+  };
+
+  const deleteBackup = async (backupId: string) => {
+    setDeletingBackupId(backupId);
+    setBackupError("");
+
+    try {
+      await requestJson(`/api/backups/${encodeURIComponent(backupId)}`, {
+        method: "DELETE",
+      });
+      setBackups((prev) => prev.filter((backup) => backup.id !== backupId));
+    } catch (error) {
+      setBackupError(
+        error instanceof Error
+          ? error.message
+          : "Backup konnte nicht gelöscht werden."
+      );
+    } finally {
+      setDeletingBackupId(null);
+    }
+  };
+
+  const handleDeleteBackup = (backupId: string) => {
+    showConfirm(
+      "Backup löschen",
+      "Möchtest du dieses JSON-Backup wirklich löschen?",
+      () => {
+        void deleteBackup(backupId);
+      },
+      "Löschen"
+    );
+  };
 
   useEffect(() => {
     return () => {
@@ -770,6 +963,13 @@ export default function ProfilePage() {
                 Profil
               </button>
               <button
+                onClick={openBackupModal}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-600 transition-all hover:border-slate-300 hover:bg-slate-50 cursor-pointer sm:flex-none sm:justify-start sm:py-1.5"
+              >
+                <DatabaseBackup className="h-3.5 w-3.5" />
+                Backup
+              </button>
+              <button
                 onClick={exportToExcel}
                 className="flex flex-1 items-center justify-center gap-1.5 rounded bg-slate-900 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-white shadow-md shadow-slate-200 transition-all hover:bg-slate-800 cursor-pointer sm:flex-none sm:justify-start sm:py-1.5"
               >
@@ -860,6 +1060,25 @@ export default function ProfilePage() {
           editingSheet ? () => handleDeleteSheet(editingSheet.id) : undefined
         }
         initialConfig={editingSheet}
+      />
+
+      <BackupModal
+        isOpen={backupModalOpen}
+        backups={backups}
+        isLoading={isLoadingBackups}
+        isCreating={isCreatingBackup}
+        restoringBackupId={restoringBackupId}
+        deletingBackupId={deletingBackupId}
+        error={backupError}
+        onClose={() => setBackupModalOpen(false)}
+        onCreate={(label) => {
+          void handleCreateBackup(label);
+        }}
+        onDownload={(backupId) => {
+          void handleDownloadBackup(backupId);
+        }}
+        onRestore={handleRestoreBackup}
+        onDelete={handleDeleteBackup}
       />
 
       <ProfileSettingsModal

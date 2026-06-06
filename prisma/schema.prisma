@@ -19,6 +19,7 @@ model AccountingProfile {
   createdAt    DateTime          @default(now()) @map("created_at")
   updatedAt    DateTime          @updatedAt @map("updated_at")
   sheets       AccountingSheet[]
+  backups      AccountingBackup[]
 
   @@map("accounting_profiles")
 }
@@ -55,4 +56,18 @@ model AccountingRow {
   @@unique([profileId, sheetId, rowId])
   @@index([profileId, sheetId])
   @@map("accounting_rows")
+}
+
+model AccountingBackup {
+  id        String            @id
+  profileId String            @map("profile_id")
+  label     String?
+  snapshot  Json
+  sheetCount Int              @default(0) @map("sheet_count")
+  rowCount   Int              @default(0) @map("row_count")
+  createdAt DateTime          @default(now()) @map("created_at")
+  profile   AccountingProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, createdAt])
+  @@map("accounting_backups")
 }

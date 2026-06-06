@@ -34,6 +34,25 @@ export interface KassenbuchEntry {
   saldo: number;
 }
 
+export interface BackupSummary {
+  id: string;
+  label: string | null;
+  createdAt: string;
+  sheetCount: number;
+  rowCount: number;
+}
+
+export interface BackupSnapshot {
+  version: number;
+  createdAt: string;
+  profile: {
+    id: string;
+    name: string;
+  };
+  sheets: SheetConfig[];
+  data: Record<string, SheetRow[]>;
+}
+
 export const SHEET_COLORS = [
   "#e53935",
   "#fb8c00",

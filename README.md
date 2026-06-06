@@ -13,6 +13,7 @@ Cool, schlank, zuverlässig: Diese Next.js-App verwaltet Buchhaltungs-Sheets dir
 - Spaltentypen für Text, Zahl, Checkbox und Datum.
 - Granulare API-Routen für Sheets und Einträge statt eines zentralen State-Endpunkts.
 - Excel-Export mit `Kassenbuch` als erstem Arbeitsblatt und danach allen eigenen Sheets.
+- JSON-Backups in der Datenbank mit den letzten 25 Snapshots pro Profil.
 - Exportierte Summen sind Excel-Formeln, damit Nachbearbeitung in Excel weiterrechnet.
 - Dashboard und Kassenbuch werden aus den gespeicherten Sheet-Einträgen berechnet.
 
@@ -85,6 +86,7 @@ Das Prisma-Schema liegt in [prisma/schema.prisma](prisma/schema.prisma).
 - `AccountingProfile`: Profil mit Name und Passwort-Hash.
 - `AccountingSheet`: Sheet-Konfiguration pro Profil mit Name, Kategorie, Farbe, Spalten, Spaltentypen und Sortierung.
 - `AccountingRow`: Eintrag pro Profil/Sheet mit profilweit eindeutiger `rowId`, Datum und dynamischen Zellwerten in `values`.
+- `AccountingBackup`: JSON-Snapshot pro Profil mit Sheet-/Eintragsanzahl; beim Erstellen bleiben automatisch nur die letzten 25 erhalten.
 - `SheetCategory`: `einnahmen`, `ausgaben`, `sonstiges`.
 
 Migrationen liegen unter [prisma/migrations](prisma/migrations).
@@ -111,6 +113,14 @@ Daten-API:
 - `PUT /api/sheets/[sheetId]/rows/[rowId]`: bearbeitet einen Eintrag.
 - `DELETE /api/sheets/[sheetId]/rows/[rowId]`: löscht einen Eintrag.
 
+Backups:
+
+- `GET /api/backups`: lädt die letzten 25 Backup-Metadaten des aktiven Profils.
+- `POST /api/backups`: erstellt einen JSON-Snapshot des aktuellen Datenbankstands.
+- `GET /api/backups/[backupId]`: lädt einen Backup-Snapshot für den JSON-Download.
+- `DELETE /api/backups/[backupId]`: löscht ein Backup.
+- `POST /api/backups/[backupId]/restore`: stellt ein Backup wieder her und erstellt vorher automatisch ein Sicherheitsbackup.
+
 Alle Daten-API-Routen prüfen serverseitig die signierte Profil-Session und filtern jede Datenbankoperation über `profileId`. Dadurch können Sheets oder Einträge aus anderen Profilen auch nicht durch direkt aufgerufene API-URLs bearbeitet werden.
 
 ---
@@ -124,12 +134,19 @@ Der Export-Button erzeugt eine `.xlsx`-Datei mit:
 
 Es gibt keinen Excel-Import und keine lokale Browser-Zwischenspeicherung. Die Datenbank ist die Quelle der Wahrheit.
 
+**Backups**
+
+Der Backup-Button öffnet eine JSON-Backup-Verwaltung. Backups werden profilgebunden in Postgres gespeichert, können als JSON heruntergeladen, gelöscht oder wiederhergestellt werden. Beim Wiederherstellen wird der aktuelle Stand zuerst als Sicherheitsbackup gespeichert.
+
 ---
 
 **Wichtige Dateien**
 
 - [app/page.tsx](app/page.tsx): Profilübersicht, Profil-Erstellung und Profil-Login.
 - [app/profiles/[profileId]/page.tsx](app/profiles/[profileId]/page.tsx): UI, Dashboard, Kassenbuch und Excel-Export für ein Profil.
+- [app/api/backups/route.ts](app/api/backups/route.ts): Backup-Liste laden und neuen JSON-Snapshot erstellen.
+- [app/api/backups/[backupId]/route.ts](app/api/backups/[backupId]/route.ts): Backup herunterladen oder löschen.
+- [app/api/backups/[backupId]/restore/route.ts](app/api/backups/[backupId]/restore/route.ts): Backup wiederherstellen.
 - [app/api/sheets/route.ts](app/api/sheets/route.ts): Laden und Erstellen von Sheets.
 - [app/api/sheets/[sheetId]/route.ts](app/api/sheets/[sheetId]/route.ts): Sheet bearbeiten/löschen.
 - [app/api/sheets/[sheetId]/rows/route.ts](app/api/sheets/[sheetId]/rows/route.ts): Einträge erstellen.
@@ -152,7 +169,7 @@ Es gibt keinen Excel-Import und keine lokale Browser-Zwischenspeicherung. Die Da
 **Aktueller Architekturstand**
 
 - Kein Vercel Blob.
-- Kein Backup-Tab.
+- Kein separater Backup-Tab; Backups laufen über das Header-Modal.
 - Kein Excel-Import.
 - Kein `/api/accounting-state`.
 - Keine `lib/accounting-state.ts`.
