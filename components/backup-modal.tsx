@@ -68,8 +68,8 @@ export function BackupModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+      <div className="flex max-h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-lg border border-slate-200 bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-lg">
         <div className="flex items-center justify-between border-b border-slate-100 p-4">
           <div className="flex items-center gap-2">
             <DatabaseBackup className="h-4 w-4 text-blue-500" />
@@ -100,7 +100,7 @@ export function BackupModal({
               type="button"
               onClick={handleCreate}
               disabled={isCreating || isLoading}
-              className="flex items-center justify-center gap-2 rounded bg-slate-900 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+              className="flex items-center justify-center gap-2 rounded bg-slate-900 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer sm:py-2"
             >
               {isCreating ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -136,7 +136,7 @@ export function BackupModal({
                 return (
                   <div
                     key={backup.id}
-                    className="flex flex-col gap-3 rounded border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+                    className="flex min-w-0 flex-col gap-3 rounded border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="min-w-0">
                       <div className="truncate text-sm font-bold text-slate-800">
@@ -149,7 +149,7 @@ export function BackupModal({
                       </div>
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="flex shrink-0 items-center justify-end gap-1">
                       <button
                         type="button"
                         onClick={() => onDownload(backup.id)}

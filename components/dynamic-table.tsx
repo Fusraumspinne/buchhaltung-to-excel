@@ -37,10 +37,10 @@ export function DynamicTable({
   const hasAnyTotal = Object.values(totals).some((val) => val > 0);
 
   return (
-    <div className="overflow-hidden border-t border-slate-200 bg-white">
-      <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/30 px-4 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+    <div className="min-w-0 overflow-hidden border-t border-slate-200 bg-white">
+      <div className="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/30 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-2.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="min-w-0 max-w-full truncate text-[10px] font-black uppercase tracking-widest text-slate-500">
             {config.name}
           </span>
           <span
@@ -55,13 +55,13 @@ export function DynamicTable({
         </div>
         <button
           onClick={onConfigure}
-          className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+          className="flex items-center gap-1 self-start text-[10px] font-bold uppercase tracking-wider text-slate-400 transition-colors hover:text-slate-600 cursor-pointer sm:self-auto"
         >
           <Settings className="w-3.5 h-3.5" /> Konfigurieren
         </button>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overscroll-x-contain">
         <table className="w-full border-collapse" style={{ minWidth: `${Math.max(600, 120 + config.columns.length * 160)}px` }}>
           <thead>
             <tr className="bg-slate-50/80 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-100">
@@ -173,7 +173,7 @@ export function DynamicTable({
         </table>
       </div>
 
-      <div className="flex items-center justify-start border-t border-slate-100 bg-slate-50/30 px-4 py-4">
+      <div className="flex items-center justify-start border-t border-slate-100 bg-slate-50/30 px-3 py-4 sm:px-4">
         <button
           onClick={onAdd}
           className="group flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 outline-none transition-all hover:text-slate-900 cursor-pointer"

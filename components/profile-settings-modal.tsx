@@ -49,8 +49,8 @@ export function ProfileSettingsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+      <div className="flex max-h-[100dvh] w-full max-w-md flex-col overflow-hidden rounded-t-lg border border-slate-200 bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-lg">
         <div className="flex items-center justify-between border-b border-slate-100 p-4">
           <h3 className="text-sm font-bold text-slate-900">Profil bearbeiten</h3>
           <button
@@ -62,7 +62,7 @@ export function ProfileSettingsModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 p-4">
+        <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto p-4">
           {error && (
             <div className="rounded border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
               {error}
@@ -104,7 +104,7 @@ export function ProfileSettingsModal({
             />
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+          <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={onClose}
@@ -115,7 +115,7 @@ export function ProfileSettingsModal({
             <button
               type="submit"
               disabled={isSaving}
-              className="flex items-center gap-2 rounded bg-slate-900 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+              className="flex items-center justify-center gap-2 rounded bg-slate-900 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
             >
               {isSaving ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

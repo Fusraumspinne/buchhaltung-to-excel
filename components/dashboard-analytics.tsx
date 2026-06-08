@@ -284,25 +284,25 @@ export function DashboardAnalytics({ rows }: DashboardAnalyticsProps) {
   const hasRows = rows.length > 0;
 
   return (
-    <div className="space-y-4">
-      <div className="rounded border border-slate-200 bg-white p-3 sm:p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+    <div className="min-w-0 space-y-4">
+      <div className="min-w-0 rounded border border-slate-200 bg-white p-3 sm:p-4">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">
               Analyse Dashboard
             </h2>
             {analytics.periodLabel && (
-              <div className="mt-1 text-[11px] font-medium text-slate-400">
+              <div className="mt-1 text-[11px] font-medium leading-relaxed text-slate-400">
                 {analytics.periodLabel} · {meta.bookings} Buchungen · {meta.daysWithMovement} aktive Abschnitte
               </div>
             )}
           </div>
-          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
             {rangeOptions.map((option) => (
               <button
                 key={option.key}
                 onClick={() => setRange(option.key)}
-                className={`flex-1 rounded border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer sm:flex-none ${
+                className={`rounded border px-3 py-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer sm:py-1.5 ${
                   range === option.key
                     ? "border-slate-900 bg-slate-900 text-white"
                     : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
@@ -321,12 +321,12 @@ export function DashboardAnalytics({ rows }: DashboardAnalyticsProps) {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <div className="rounded border border-slate-200 bg-white p-3 sm:p-4">
+          <div className="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-2">
+            <div className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-3 sm:p-4">
               <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
                 Kontostand-Verlauf
               </div>
-              <div className="h-48 sm:h-52">
+              <div className="h-56 min-w-0 sm:h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={analytics.chartData} margin={{ top: 8, right: 8, left: 8, bottom: 4 }}>
                     <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
@@ -355,11 +355,11 @@ export function DashboardAnalytics({ rows }: DashboardAnalyticsProps) {
               </div>
             </div>
 
-            <div className="rounded border border-slate-200 bg-white p-3 sm:p-4">
+            <div className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-3 sm:p-4">
               <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
                 Einnahmen vs Ausgaben
               </div>
-              <div className="h-48 sm:h-52">
+              <div className="h-56 min-w-0 sm:h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={analytics.chartData} margin={{ top: 8, right: 8, left: 8, bottom: 4 }} barGap={4}>
                     <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
@@ -390,12 +390,12 @@ export function DashboardAnalytics({ rows }: DashboardAnalyticsProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <div className="rounded border border-slate-200 bg-white p-3 sm:p-4">
+          <div className="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-2">
+            <div className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-3 sm:p-4">
               <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
                 Einnahmen / Ausgaben
               </div>
-              <div className="h-56">
+              <div className="h-56 min-w-0">
                 {breakdown.cashflowPie.length === 0 ? (
                   <EmptyChart message="Keine Einnahmen oder Ausgaben im gewählten Zeitraum." />
                 ) : (
@@ -427,11 +427,11 @@ export function DashboardAnalytics({ rows }: DashboardAnalyticsProps) {
               </div>
             </div>
 
-            <div className="rounded border border-slate-200 bg-white p-3 sm:p-4">
+            <div className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-3 sm:p-4">
               <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
                 Buchungen
               </div>
-              <div className="h-48 sm:h-52">
+              <div className="h-56 min-w-0 sm:h-52">
                 {analytics.selectedRows.length === 0 ? (
                   <EmptyChart message="Keine Buchungen im gewählten Zeitraum." />
                 ) : (
@@ -475,7 +475,7 @@ export function DashboardAnalytics({ rows }: DashboardAnalyticsProps) {
 
 function EmptyChart({ message }: { message: string }) {
   return (
-    <div className="flex h-full items-center justify-center rounded border border-dashed border-slate-200 text-center text-xs text-slate-400">
+    <div className="flex h-full items-center justify-center rounded border border-dashed border-slate-200 px-3 text-center text-xs text-slate-400">
       {message}
     </div>
   );

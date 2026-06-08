@@ -154,8 +154,8 @@ export default function ProfileHome() {
   };
 
   return (
-    <main className="min-h-screen bg-white p-3 text-slate-900 sm:p-4 lg:p-6">
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-6xl flex-col gap-6 px-1 sm:px-2 md:px-4 md:border-x md:border-slate-100">
+    <main className="min-h-screen overflow-x-hidden bg-white p-3 text-slate-900 sm:p-4 lg:p-6">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full min-w-0 max-w-6xl flex-col gap-6 px-1 sm:px-2 md:px-4 md:border-x md:border-slate-100">
         <header className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between sm:pt-4">
           <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight text-slate-800 sm:text-xl">
             <FileSpreadsheet className="h-5 w-5 text-blue-500" />
@@ -164,7 +164,7 @@ export default function ProfileHome() {
           <button
             type="button"
             onClick={() => resetForm("create")}
-            className="flex items-center justify-center gap-1.5 rounded bg-slate-900 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-white shadow-md shadow-slate-200 transition-all hover:bg-slate-800 sm:w-auto cursor-pointer"
+            className="flex w-full items-center justify-center gap-1.5 rounded bg-slate-900 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-white shadow-md shadow-slate-200 transition-all hover:bg-slate-800 sm:w-auto cursor-pointer"
           >
             <Plus className="h-3.5 w-3.5" />
             Neues Profil
@@ -178,7 +178,7 @@ export default function ProfileHome() {
           </div>
         )}
 
-        <div className="grid flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid min-w-0 flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
           <section className="min-w-0">
             {loading ? (
               <div className="flex h-56 items-center justify-center rounded border border-slate-100 text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -190,7 +190,7 @@ export default function ProfileHome() {
                 Noch keine Profile
               </div>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid min-w-0 gap-3 sm:grid-cols-2">
                 {profiles.map((profile) => {
                   const isSelected = profile.id === selectedProfileId && mode === "open";
                   return (
@@ -198,7 +198,7 @@ export default function ProfileHome() {
                       key={profile.id}
                       type="button"
                       onClick={() => resetForm("open", profile.id)}
-                      className={`rounded border p-4 text-left transition-all cursor-pointer ${
+                      className={`min-w-0 rounded border p-4 text-left transition-all cursor-pointer ${
                         isSelected
                           ? "border-slate-900 bg-slate-50"
                           : "border-slate-100 hover:border-slate-300 hover:bg-slate-50"
@@ -231,7 +231,7 @@ export default function ProfileHome() {
             )}
           </section>
 
-          <aside className="rounded border border-slate-100 bg-white p-5 shadow-sm">
+          <aside className="min-w-0 rounded border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
             <div className="mb-5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
               <LockKeyhole className="h-3.5 w-3.5" />
               {mode === "create" ? "Profil erstellen" : "Profil öffnen"}

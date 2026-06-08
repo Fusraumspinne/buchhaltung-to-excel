@@ -40,16 +40,16 @@ export function AlertModal({
   const hasNavigation = Boolean(onPrevious || onNext);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-200">
-        <div className="p-4 sm:p-6">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm animate-in fade-in duration-200 sm:items-center sm:p-4">
+      <div className="flex max-h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-200 sm:max-h-[90vh] sm:rounded-xl">
+        <div className="overflow-y-auto p-4 sm:p-6">
           <h3 className="mb-2 text-lg font-bold text-slate-900 sm:text-xl">{title}</h3>
           <div className="text-slate-600 leading-relaxed whitespace-pre-line text-sm">{message}</div>
         </div>
         <div
           className={
             hasNavigation
-              ? "flex items-center justify-between bg-slate-50 p-4"
+              ? "flex items-center justify-between gap-3 bg-slate-50 p-4"
               : "flex flex-col-reverse gap-2 bg-slate-50 p-4 sm:flex-row sm:justify-end sm:gap-3"
           }
         >
@@ -72,7 +72,7 @@ export function AlertModal({
             </div>
           ) : null}
 
-          <div className={hasNavigation ? "flex items-center gap-2" : "flex flex-col-reverse gap-2 sm:flex-row sm:gap-3"}>
+          <div className={hasNavigation ? "flex min-w-0 items-center justify-end gap-2" : "flex flex-col-reverse gap-2 sm:flex-row sm:gap-3"}>
             {onConfirm && (
               <button
                 onClick={() => {

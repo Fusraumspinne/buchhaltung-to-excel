@@ -99,8 +99,8 @@ export function SheetConfigModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+      <div className="flex max-h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-xl border border-slate-200 bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-xl">
         <div className="flex items-center justify-between border-b border-slate-100 p-4 sm:p-5">
           <h3 className="text-base font-bold text-slate-900">
             {initialConfig ? "Sheet bearbeiten" : "Neues Sheet erstellen"}
@@ -113,7 +113,7 @@ export function SheetConfigModal({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5">
+        <div className="flex-1 space-y-5 overflow-y-auto p-4 sm:p-5">
           <div>
             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">
               Name
@@ -131,13 +131,13 @@ export function SheetConfigModal({
             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">
               Kategorie
             </label>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
               {(Object.entries(CATEGORY_LABELS) as [SheetCategory, string][]).map(
                 ([key, label]) => (
                   <button
                     key={key}
                     onClick={() => setCategory(key)}
-                    className={`rounded border px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                    className={`rounded border px-3 py-2 text-xs font-bold transition-all cursor-pointer sm:py-1.5 ${
                       category === key
                         ? "bg-slate-900 text-white border-slate-900"
                         : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"
@@ -159,7 +159,7 @@ export function SheetConfigModal({
                 <button
                   key={c}
                   onClick={() => setColor(c)}
-                  className={`w-7 h-7 rounded-full border-2 transition-all cursor-pointer ${
+                  className={`h-8 w-8 rounded-full border-2 transition-all cursor-pointer sm:h-7 sm:w-7 ${
                     color === c ? "border-slate-900 scale-110" : "border-transparent hover:scale-105"
                   }`}
                   style={{ backgroundColor: c }}
@@ -186,15 +186,15 @@ export function SheetConfigModal({
               {columns.map((col) => (
                 <div
                   key={col.id}
-                  className="rounded border border-slate-200 bg-white p-3 space-y-2"
+                  className="space-y-2 rounded border border-slate-200 bg-white p-3"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <input
                       type="text"
                       value={col.title}
                       onChange={(e) => updateColumn(col.id, { title: e.target.value })}
                       placeholder="Spaltenname"
-                      className="flex-1 rounded border border-slate-200 px-2 py-1.5 text-xs outline-none focus:border-slate-400 transition-colors"
+                      className="min-w-0 flex-1 rounded border border-slate-200 px-2 py-2 text-xs outline-none transition-colors focus:border-slate-400 sm:py-1.5"
                     />
                     <select
                       value={col.type}
@@ -204,7 +204,7 @@ export function SheetConfigModal({
                           type: newType,
                         });
                       }}
-                      className="rounded border border-slate-200 px-2 py-1.5 text-xs outline-none focus:border-slate-400 cursor-pointer bg-white"
+                      className="rounded border border-slate-200 bg-white px-2 py-2 text-xs outline-none transition-colors focus:border-slate-400 cursor-pointer sm:py-1.5"
                     >
                       {(Object.entries(COLUMN_TYPE_LABELS) as [ColumnType, string][]).map(
                         ([key, label]) => (
@@ -216,7 +216,7 @@ export function SheetConfigModal({
                     </select>
                     <button
                       onClick={() => removeColumn(col.id)}
-                      className="p-1 text-slate-300 hover:text-red-500 transition-colors cursor-pointer"
+                      className="self-start p-1 text-slate-300 transition-colors hover:text-red-500 cursor-pointer sm:self-auto"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -237,8 +237,8 @@ export function SheetConfigModal({
           </div>
         </div>
 
-        <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+        <div className="flex flex-col-reverse gap-3 border-t border-slate-100 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-h-5">
             {onDelete && initialConfig && (
               <button
                 onClick={() => {
@@ -251,10 +251,10 @@ export function SheetConfigModal({
               </button>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex">
             <button
               onClick={onClose}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 cursor-pointer"
             >
               Abbrechen
             </button>

@@ -24,26 +24,26 @@ export function SummaryCards({ sheets, data }: SummaryCardsProps) {
   const gesamtSaldo = totals.einnahmen - totals.ausgaben;
 
   return (
-    <div className="mb-6 sm:mb-8 space-y-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-t border-b-2 border-slate-100 bg-slate-50/50 p-3 transition-all">
+    <div className="mb-6 min-w-0 space-y-3 sm:mb-8">
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="min-w-0 rounded-t border-b-2 border-slate-100 bg-slate-50/50 p-3 transition-all">
           <p className="text-[10px] uppercase font-bold text-slate-400 mb-1 tracking-widest">
             Einnahmen
           </p>
-          <p className="text-lg font-black text-slate-900 sm:text-xl">
+          <p className="break-words text-base font-black leading-tight text-slate-900 sm:text-xl">
             {totals.einnahmen.toFixed(2)} EUR
           </p>
         </div>
-        <div className="rounded-t border-b-2 border-slate-100 bg-slate-50/50 p-3 transition-all">
+        <div className="min-w-0 rounded-t border-b-2 border-slate-100 bg-slate-50/50 p-3 transition-all">
           <p className="text-[10px] uppercase font-bold text-slate-400 mb-1 tracking-widest">
             Ausgaben
           </p>
-          <p className="text-lg font-black text-slate-900 sm:text-xl">
+          <p className="break-words text-base font-black leading-tight text-slate-900 sm:text-xl">
             {totals.ausgaben.toFixed(2)} EUR
           </p>
         </div>
         <div
-          className={`rounded-t border-b-2 p-3 transition-all ${
+          className={`min-w-0 rounded-t border-b-2 p-3 transition-all ${
             gesamtSaldo >= 0
               ? "bg-green-50/30 border-green-200"
               : "bg-red-50/30 border-red-200"
@@ -57,7 +57,7 @@ export function SummaryCards({ sheets, data }: SummaryCardsProps) {
             Gesamt
           </p>
           <p
-            className={`text-lg font-black sm:text-xl ${
+            className={`break-words text-base font-black leading-tight sm:text-xl ${
               gesamtSaldo >= 0 ? "text-green-700" : "text-red-700"
             }`}
           >

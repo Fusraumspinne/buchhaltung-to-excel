@@ -917,13 +917,13 @@ export default function ProfilePage() {
       : "Datenbank bereit";
 
   return (
-    <div className="min-h-screen bg-white p-3 text-slate-900 sm:p-4 lg:p-6 font-sans">
-      <div className="mx-auto max-w-6xl px-1 sm:px-2 md:px-4 md:border-x md:border-slate-100">
-        <div className="mb-6 flex flex-col gap-3 pt-2 sm:mb-8 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:pt-4">
-          <h1 className="flex flex-wrap items-center gap-2 text-lg font-bold tracking-tight text-slate-800 sm:text-xl">
+    <div className="min-h-screen overflow-x-hidden bg-white p-3 font-sans text-slate-900 sm:p-4 lg:p-6">
+      <div className="mx-auto w-full min-w-0 max-w-6xl px-1 sm:px-2 md:px-4 md:border-x md:border-slate-100">
+        <div className="mb-5 grid min-w-0 gap-3 pt-2 sm:mb-8 md:grid-cols-[minmax(0,1fr)_auto] md:items-start md:gap-4 md:pt-4">
+          <h1 className="flex min-w-0 flex-wrap items-center gap-2 text-lg font-bold tracking-tight text-slate-800 sm:text-xl">
             <FileSpreadsheet className="text-blue-500 w-5 h-5" /> BUCHHALTUNG
             {profileName && (
-              <span className="max-w-[12rem] truncate rounded bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <span className="min-w-0 max-w-full truncate rounded bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 sm:max-w-xs">
                 {profileName}
               </span>
             )}
@@ -935,7 +935,7 @@ export default function ProfilePage() {
               <Info className="w-4 h-4" />
             </button>
           </h1>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+          <div className="flex w-full min-w-0 flex-col gap-2 md:w-auto md:items-end">
             <div
               className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${
                 saveError ? "text-red-500" : "text-slate-400"
@@ -951,34 +951,34 @@ export default function ProfilePage() {
               )}
               {saveStatusLabel}
             </div>
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap">
+            <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4 md:flex md:w-auto md:flex-nowrap">
               <button
                 onClick={() => {
                   setProfileSettingsError("");
                   setProfileSettingsOpen(true);
                 }}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-600 transition-all hover:border-slate-300 hover:bg-slate-50 cursor-pointer sm:flex-none sm:justify-start sm:py-1.5"
+                className="flex min-w-0 items-center justify-center gap-1.5 rounded border border-slate-200 bg-white px-2 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-600 transition-all hover:border-slate-300 hover:bg-slate-50 cursor-pointer sm:px-3 md:flex-none md:justify-start md:py-1.5"
               >
                 <Settings className="h-3.5 w-3.5" />
                 Profil
               </button>
               <button
                 onClick={openBackupModal}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-600 transition-all hover:border-slate-300 hover:bg-slate-50 cursor-pointer sm:flex-none sm:justify-start sm:py-1.5"
+                className="flex min-w-0 items-center justify-center gap-1.5 rounded border border-slate-200 bg-white px-2 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-600 transition-all hover:border-slate-300 hover:bg-slate-50 cursor-pointer sm:px-3 md:flex-none md:justify-start md:py-1.5"
               >
                 <DatabaseBackup className="h-3.5 w-3.5" />
                 Backup
               </button>
               <button
                 onClick={exportToExcel}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded bg-slate-900 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-white shadow-md shadow-slate-200 transition-all hover:bg-slate-800 cursor-pointer sm:flex-none sm:justify-start sm:py-1.5"
+                className="flex min-w-0 items-center justify-center gap-1.5 rounded bg-slate-900 px-2 py-2 text-[11px] font-bold uppercase tracking-wider text-white shadow-md shadow-slate-200 transition-all hover:bg-slate-800 cursor-pointer sm:px-3 md:flex-none md:justify-start md:py-1.5"
               >
                 <Download className="w-3.5 h-3.5" /> Export
               </button>
               <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-600 transition-all hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer sm:flex-none sm:justify-start sm:py-1.5"
+                className="flex min-w-0 items-center justify-center gap-1.5 rounded border border-slate-200 bg-white px-2 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-600 transition-all hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer sm:px-3 md:flex-none md:justify-start md:py-1.5"
               >
                 {isLoggingOut ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

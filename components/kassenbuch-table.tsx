@@ -7,9 +7,9 @@ interface KassenbuchTableProps {
 
 export function KassenbuchTable({ rows, sheets }: KassenbuchTableProps) {
   return (
-    <div className="overflow-hidden border-t border-slate-200 bg-white">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-190 border-collapse">
+    <div className="min-w-0 overflow-hidden border-t border-slate-200 bg-white">
+      <div className="overflow-x-auto overscroll-x-contain">
+        <table className="w-full min-w-[44rem] border-collapse">
           <thead>
             <tr className="bg-slate-50/80 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-100">
               <th className="px-4 py-3 w-20">ID</th>
@@ -33,7 +33,7 @@ export function KassenbuchTable({ rows, sheets }: KassenbuchTableProps) {
                   <tr key={`${row.typ}-${row.id}-${idx}`} className="hover:bg-slate-50/40 transition-colors">
                     <td className="px-4 py-3 text-xs font-bold text-slate-600">#{row.id}</td>
                     <td className="px-4 py-3 text-xs text-slate-600">{row.datum}</td>
-                    <td className="px-4 py-3 text-xs text-slate-600 flex items-center gap-1.5">
+                    <td className="px-4 py-3 text-xs text-slate-600">
                       {row.typ}
                     </td>
                     <td className="px-4 py-3 text-xs text-right text-green-600 font-medium">
