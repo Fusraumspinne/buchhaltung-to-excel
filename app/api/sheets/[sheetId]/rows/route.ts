@@ -295,6 +295,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       const existingRows = await tx.accountingRow.findMany({
         where: { profileId: profile.id, sheetId: decodedSheetId },
+        orderBy: [
+          { sortOrder: "asc" },
+          { rowId: "desc" },
+        ],
         select: { rowId: true },
       });
       const existingRowIds = new Set(existingRows.map((row) => row.rowId));
@@ -306,19 +310,48 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         throw new Error("Reihenfolge passt nicht zu den vorhandenen Einträgen.");
       }
 
+      const tempRowIdBySourceId = new Map<number, number>();
+      const targetRowIds = existingRows.map((row) => row.rowId);
+
       await Promise.all(
-        orderedRowIds.map((rowId, index) =>
-          tx.accountingRow.update({
+        existingRows.map((row, index) => {
+          const tempRowId = -1 - index;
+          tempRowIdBySourceId.set(row.rowId, tempRowId);
+
+          return tx.accountingRow.update({
             where: {
               profileId_sheetId_rowId: {
                 profileId: profile.id,
                 sheetId: decodedSheetId,
-                rowId,
+                rowId: row.rowId,
               },
             },
-            data: { sortOrder: index },
-          })
-        )
+            data: { rowId: tempRowId },
+          });
+        })
+      );
+
+      await Promise.all(
+        orderedRowIds.map((sourceRowId, index) => {
+          const tempRowId = tempRowIdBySourceId.get(sourceRowId);
+          if (tempRowId === undefined) {
+            throw new Error("Reihenfolge passt nicht zu den vorhandenen Einträgen.");
+          }
+
+          return tx.accountingRow.update({
+            where: {
+              profileId_sheetId_rowId: {
+                profileId: profile.id,
+                sheetId: decodedSheetId,
+                rowId: tempRowId,
+              },
+            },
+            data: {
+              rowId: targetRowIds[index],
+              sortOrder: index,
+            },
+          });
+        })
       );
 
       await tx.accountingProfile.update({

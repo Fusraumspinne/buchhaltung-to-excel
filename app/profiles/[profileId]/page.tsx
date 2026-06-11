@@ -761,16 +761,22 @@ export default function ProfilePage() {
       nextRows[targetIndex],
       nextRows[currentIndex],
     ];
+    const rowIdsInNextOrder = nextRows.map((row) => row._id);
+    const rowIdsByPosition = currentRows.map((row) => row._id);
+    const rowsWithAdjustedIds = nextRows.map((row, index) => ({
+      ...row,
+      _id: rowIdsByPosition[index],
+    }));
 
     setData((prev) => ({
       ...prev,
-      [sheetId]: nextRows,
+      [sheetId]: rowsWithAdjustedIds,
     }));
 
     void queueDatabaseMutation(() =>
       requestJson(`/api/sheets/${encodeURIComponent(sheetId)}/rows`, {
         method: "PATCH",
-        body: JSON.stringify({ rowIds: nextRows.map((row) => row._id) }),
+        body: JSON.stringify({ rowIds: rowIdsInNextOrder }),
       })
     );
   };
