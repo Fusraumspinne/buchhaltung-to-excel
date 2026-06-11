@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Trash2, X } from "lucide-react";
 import {
   SheetConfig,
   SheetCategory,
@@ -69,6 +69,28 @@ export function SheetConfigModal({
     setColumns((prev) =>
       prev.map((c) => (c.id === colId ? { ...c, ...updates } : c))
     );
+  };
+
+  const moveColumn = (colId: string, direction: "up" | "down") => {
+    setColumns((prev) => {
+      const currentIndex = prev.findIndex((column) => column.id === colId);
+      const targetIndex = currentIndex + (direction === "up" ? -1 : 1);
+
+      if (
+        currentIndex < 0 ||
+        targetIndex < 0 ||
+        targetIndex >= prev.length
+      ) {
+        return prev;
+      }
+
+      const next = [...prev];
+      [next[currentIndex], next[targetIndex]] = [
+        next[targetIndex],
+        next[currentIndex],
+      ];
+      return next;
+    });
   };
 
   const handleSave = () => {
@@ -183,12 +205,30 @@ export function SheetConfigModal({
                 )}
               </div>
 
-              {columns.map((col) => (
+              {columns.map((col, index) => (
                 <div
                   key={col.id}
                   className="space-y-2 rounded border border-slate-200 bg-white p-3"
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <div className="flex shrink-0 items-center gap-1 sm:flex-col sm:gap-0.5">
+                      <button
+                        onClick={() => moveColumn(col.id, "up")}
+                        disabled={index === 0}
+                        title="Spalte nach oben verschieben"
+                        className="rounded p-1 text-slate-300 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-300 cursor-pointer"
+                      >
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => moveColumn(col.id, "down")}
+                        disabled={index === columns.length - 1}
+                        title="Spalte nach unten verschieben"
+                        className="rounded p-1 text-slate-300 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-300 cursor-pointer"
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                     <input
                       type="text"
                       value={col.title}

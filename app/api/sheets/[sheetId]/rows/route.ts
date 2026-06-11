@@ -153,6 +153,27 @@ function mapRow(row: DbRow): SheetRow {
   };
 }
 
+function parseOrderedRowIds(raw: unknown): number[] | null {
+  const entry =
+    raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  if (!Array.isArray(entry.rowIds)) return null;
+
+  const used = new Set<number>();
+  const rowIds: number[] = [];
+
+  for (const rawId of entry.rowIds) {
+    const rowId = Number(rawId);
+    if (!Number.isInteger(rowId) || rowId <= 0 || used.has(rowId)) {
+      return null;
+    }
+
+    used.add(rowId);
+    rowIds.push(rowId);
+  }
+
+  return rowIds;
+}
+
 export async function POST(request: NextRequest, context: RouteContext) {
   const profile = await getAuthenticatedProfile(request);
   if (!profile) {
@@ -202,6 +223,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
         rowId = (max._max.rowId || 0) + 1;
       }
 
+      const minSortOrder = await tx.accountingRow.aggregate({
+        where: { profileId: profile.id, sheetId: decodedSheetId },
+        _min: { sortOrder: true },
+      });
+      const sortOrder =
+        minSortOrder._min.sortOrder === null
+          ? 0
+          : minSortOrder._min.sortOrder - 1;
+
       const normalizedRow = normalizeRow(rowCandidate, sheetColumns(sheet), rowId);
       const { datum, values } = splitRow(normalizedRow);
 
@@ -212,6 +242,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           rowId: normalizedRow._id,
           datum,
           values: toInputJson(values),
+          sortOrder,
         },
       });
 
@@ -226,5 +257,78 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ ok: true, row: mapRow(row) });
   } catch (error) {
     return errorResponse(error, "Eintrag konnte nicht erstellt werden.");
+  }
+}
+
+export async function PATCH(request: NextRequest, context: RouteContext) {
+  const profile = await getAuthenticatedProfile(request);
+  if (!profile) {
+    return unauthorizedResponse();
+  }
+
+  const { sheetId } = await context.params;
+  const decodedSheetId = decodeURIComponent(sheetId);
+  const body = await request.json().catch(() => ({}));
+  const orderedRowIds = parseOrderedRowIds(body);
+
+  if (!orderedRowIds) {
+    return NextResponse.json(
+      { ok: false, error: "Ungültige Reihenfolge." },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const prisma = getPrisma();
+
+    await prisma.$transaction(async (tx) => {
+      const sheet = await tx.accountingSheet.findUnique({
+        where: {
+          profileId_id: {
+            profileId: profile.id,
+            id: decodedSheetId,
+          },
+        },
+        select: { id: true },
+      });
+      if (!sheet) throw new Error("Sheet nicht gefunden.");
+
+      const existingRows = await tx.accountingRow.findMany({
+        where: { profileId: profile.id, sheetId: decodedSheetId },
+        select: { rowId: true },
+      });
+      const existingRowIds = new Set(existingRows.map((row) => row.rowId));
+
+      if (
+        existingRowIds.size !== orderedRowIds.length ||
+        orderedRowIds.some((rowId) => !existingRowIds.has(rowId))
+      ) {
+        throw new Error("Reihenfolge passt nicht zu den vorhandenen Einträgen.");
+      }
+
+      await Promise.all(
+        orderedRowIds.map((rowId, index) =>
+          tx.accountingRow.update({
+            where: {
+              profileId_sheetId_rowId: {
+                profileId: profile.id,
+                sheetId: decodedSheetId,
+                rowId,
+              },
+            },
+            data: { sortOrder: index },
+          })
+        )
+      );
+
+      await tx.accountingProfile.update({
+        where: { id: profile.id },
+        data: { updatedAt: new Date() },
+      });
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return errorResponse(error, "Reihenfolge konnte nicht gespeichert werden.");
   }
 }

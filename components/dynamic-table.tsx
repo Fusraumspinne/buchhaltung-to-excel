@@ -1,5 +1,13 @@
 import { SheetCellValue, SheetConfig, SheetRow, CATEGORY_LABELS } from "@/lib/types";
-import { Lock, Plus, Settings, Trash2, Unlock } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Lock,
+  Plus,
+  Settings,
+  Trash2,
+  Unlock,
+} from "lucide-react";
 
 interface DynamicTableProps {
   config: SheetConfig;
@@ -7,6 +15,7 @@ interface DynamicTableProps {
   allRows: SheetRow[];
   onAdd: () => void;
   onRemove: (id: number) => void;
+  onMove: (id: number, direction: "up" | "down") => void;
   onToggleLock: (id: number, locked: boolean) => void;
   onUpdate: (rowId: number, field: string, value: SheetCellValue) => void;
   onConfigure: () => void;
@@ -18,6 +27,7 @@ export function DynamicTable({
   allRows,
   onAdd,
   onRemove,
+  onMove,
   onToggleLock,
   onUpdate,
   onConfigure,
@@ -62,10 +72,10 @@ export function DynamicTable({
       </div>
 
       <div className="overflow-x-auto overscroll-x-contain">
-        <table className="w-full border-collapse" style={{ minWidth: `${Math.max(600, 120 + config.columns.length * 160)}px` }}>
+        <table className="w-full border-collapse" style={{ minWidth: `${Math.max(640, 160 + config.columns.length * 160)}px` }}>
           <thead>
             <tr className="bg-slate-50/80 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-100">
-              <th className="px-4 py-3 w-20">ID</th>
+              <th className="px-4 py-3 w-28">ID</th>
               <th className="px-4 py-3 w-32">Datum</th>
               {config.columns.map((col) => (
                 <th key={col.id} className={`px-4 py-3 ${columnClass(col.type)}`}>
@@ -91,6 +101,9 @@ export function DynamicTable({
             ) : (
               rows.map((row) => {
                 const isLocked = Boolean(row._locked);
+                const rowIndex = allRows.findIndex((entry) => entry._id === row._id);
+                const canMoveUp = rowIndex > 0;
+                const canMoveDown = rowIndex >= 0 && rowIndex < allRows.length - 1;
 
                 return (
                   <tr
@@ -102,7 +115,27 @@ export function DynamicTable({
                     }`}
                   >
                     <td className="px-4 py-3 text-xs font-bold text-slate-600">
-                      #{row._id}
+                      <div className="flex items-center gap-2">
+                        <span className="min-w-10">#{row._id}</span>
+                        <div className="flex items-center gap-0.5">
+                          <button
+                            onClick={() => onMove(row._id, "up")}
+                            disabled={!canMoveUp}
+                            title="Eintrag nach oben verschieben"
+                            className="rounded p-0.5 text-slate-300 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-300 cursor-pointer"
+                          >
+                            <ChevronUp className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => onMove(row._id, "down")}
+                            disabled={!canMoveDown}
+                            title="Eintrag nach unten verschieben"
+                            className="rounded p-0.5 text-slate-300 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-300 cursor-pointer"
+                          >
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-2 py-2">
                       <input

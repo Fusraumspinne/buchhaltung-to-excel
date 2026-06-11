@@ -173,7 +173,10 @@ export async function GET(request: NextRequest) {
       ],
       include: {
         rows: {
-          orderBy: { rowId: "desc" },
+          orderBy: [
+            { sortOrder: "asc" },
+            { rowId: "desc" },
+          ],
         },
       },
     });

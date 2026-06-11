@@ -48,6 +48,7 @@ model AccountingRow {
   rowId     Int             @map("row_id")
   datum     String
   values    Json            @default("{}")
+  sortOrder Int             @default(0) @map("sort_order")
   createdAt DateTime        @default(now()) @map("created_at")
   updatedAt DateTime        @updatedAt @map("updated_at")
   sheet     AccountingSheet @relation(fields: [profileId, sheetId], references: [profileId, id], onDelete: Cascade)
@@ -55,6 +56,7 @@ model AccountingRow {
   @@id([profileId, rowId])
   @@unique([profileId, sheetId, rowId])
   @@index([profileId, sheetId])
+  @@index([profileId, sheetId, sortOrder])
   @@map("accounting_rows")
 }
 

@@ -37,6 +37,7 @@ type DbRow = {
   rowId: number;
   datum: string;
   values: Prisma.JsonValue;
+  sortOrder?: number;
 };
 
 type DbBackup = {
@@ -251,7 +252,10 @@ export async function buildBackupSnapshot(
     ],
     include: {
       rows: {
-        orderBy: { rowId: "desc" },
+        orderBy: [
+          { sortOrder: "asc" },
+          { rowId: "desc" },
+        ],
       },
     },
   });
@@ -439,7 +443,8 @@ export async function restoreBackupSnapshot(
     });
 
     const rows = snapshot.data[sheet.id] || [];
-    for (const row of rows) {
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+      const row = rows[rowIndex];
       const { datum, values } = splitRow(row);
       await tx.accountingRow.create({
         data: {
@@ -448,6 +453,7 @@ export async function restoreBackupSnapshot(
           rowId: row._id,
           datum,
           values: toInputJson(values),
+          sortOrder: rowIndex,
         },
       });
     }

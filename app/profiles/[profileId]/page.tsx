@@ -743,6 +743,38 @@ export default function ProfilePage() {
     );
   };
 
+  const moveRow = (sheetId: string, rowId: number, direction: "up" | "down") => {
+    const currentRows = data[sheetId] || [];
+    const currentIndex = currentRows.findIndex((row) => row._id === rowId);
+    const targetIndex = currentIndex + (direction === "up" ? -1 : 1);
+
+    if (
+      currentIndex < 0 ||
+      targetIndex < 0 ||
+      targetIndex >= currentRows.length
+    ) {
+      return;
+    }
+
+    const nextRows = [...currentRows];
+    [nextRows[currentIndex], nextRows[targetIndex]] = [
+      nextRows[targetIndex],
+      nextRows[currentIndex],
+    ];
+
+    setData((prev) => ({
+      ...prev,
+      [sheetId]: nextRows,
+    }));
+
+    void queueDatabaseMutation(() =>
+      requestJson(`/api/sheets/${encodeURIComponent(sheetId)}/rows`, {
+        method: "PATCH",
+        body: JSON.stringify({ rowIds: nextRows.map((row) => row._id) }),
+      })
+    );
+  };
+
   const kassenbuchRows = useMemo<KassenbuchEntry[]>(() => {
     const entries: Array<{
       id: number;
@@ -836,7 +868,7 @@ export default function ProfilePage() {
         }
         ws.columns = cols;
 
-        const rows = [...(data[sheet.id] || [])].sort((a, b) => a._id - b._id);
+        const rows = data[sheet.id] || [];
         rows.forEach((row) => ws.addRow(row));
 
         const lastDataRow = rows.length + 1;
@@ -1034,6 +1066,7 @@ export default function ProfilePage() {
                 setCurrentPage(1);
               }}
               onRemove={(id) => removeRow(activeSheet.id, id)}
+              onMove={(id, direction) => moveRow(activeSheet.id, id, direction)}
               onToggleLock={(id, locked) =>
                 updateRow(activeSheet.id, id, "_locked", locked)
               }
