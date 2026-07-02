@@ -138,6 +138,8 @@ const HELP_GUIDE_PAGES = [
 export default function ProfilePage() {
   const router = useRouter();
   const [sheets, setSheets] = useState<SheetConfig[]>([]);
+  const sheetsRef = useRef<SheetConfig[]>([]);
+  const sheetOrderDirtyRef = useRef(false);
   const [data, setData] = useState<Record<string, SheetRow[]>>({});
   const [profileId, setProfileId] = useState("");
   const [profileName, setProfileName] = useState("");
@@ -165,6 +167,10 @@ export default function ProfilePage() {
   const mutationQueueRef = useRef<Promise<void>>(Promise.resolve());
   const pendingMutationCountRef = useRef(0);
   const unmountedRef = useRef(false);
+
+  useEffect(() => {
+    sheetsRef.current = sheets;
+  }, [sheets]);
 
   const [alertConfig, setAlertConfig] = useState<{
     isOpen: boolean;
@@ -536,6 +542,36 @@ export default function ProfilePage() {
   const handleTabChange = (newTab: string) => {
     setActiveTab(newTab);
     setCurrentPage(1);
+  };
+
+  const handleReorderSheets = (sourceSheetId: string, targetSheetId: string) => {
+    setSheets((prev) => {
+      const sourceIndex = prev.findIndex((sheet) => sheet.id === sourceSheetId);
+      const targetIndex = prev.findIndex((sheet) => sheet.id === targetSheetId);
+      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+        return prev;
+      }
+
+      const next = [...prev];
+      const [movedSheet] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, movedSheet);
+      sheetsRef.current = next;
+      sheetOrderDirtyRef.current = true;
+      return next;
+    });
+  };
+
+  const handleReorderSheetsEnd = () => {
+    if (!sheetOrderDirtyRef.current) return;
+    sheetOrderDirtyRef.current = false;
+
+    const sheetIds = sheetsRef.current.map((sheet) => sheet.id);
+    void queueDatabaseMutation(() =>
+      requestJson("/api/sheets/reorder", {
+        method: "PATCH",
+        body: JSON.stringify({ sheetIds }),
+      })
+    );
   };
 
   const handleLogout = async () => {
@@ -1036,6 +1072,8 @@ export default function ProfilePage() {
           sheets={sheets}
           onChange={handleTabChange}
           onAddSheet={openNewSheetModal}
+          onReorderSheets={handleReorderSheets}
+          onReorderSheetsEnd={handleReorderSheetsEnd}
         />
 
         {activeTab === "dashboard" && (

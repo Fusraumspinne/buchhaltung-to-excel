@@ -1,3 +1,6 @@
+"use client";
+
+import { type PointerEvent, useRef, useState } from "react";
 import { SheetConfig } from "@/lib/types";
 import { Plus } from "lucide-react";
 
@@ -6,9 +9,88 @@ interface NavigationTabsProps {
   sheets: SheetConfig[];
   onChange: (tab: string) => void;
   onAddSheet: () => void;
+  onReorderSheets: (sourceSheetId: string, targetSheetId: string) => void;
+  onReorderSheetsEnd: () => void;
 }
 
-export function NavigationTabs({ activeTab, sheets, onChange, onAddSheet }: NavigationTabsProps) {
+const DRAG_THRESHOLD_PX = 6;
+
+export function NavigationTabs({
+  activeTab,
+  sheets,
+  onChange,
+  onAddSheet,
+  onReorderSheets,
+  onReorderSheetsEnd,
+}: NavigationTabsProps) {
+  const dragRef = useRef<{
+    sheetId: string;
+    pointerId: number;
+    startX: number;
+    dragging: boolean;
+  } | null>(null);
+  const suppressClickRef = useRef(false);
+  const [draggingSheetId, setDraggingSheetId] = useState<string | null>(null);
+
+  const handleSheetPointerDown = (
+    event: PointerEvent<HTMLButtonElement>,
+    sheetId: string
+  ) => {
+    if (event.button !== 0) return;
+    dragRef.current = {
+      sheetId,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      dragging: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleSheetPointerMove = (event: PointerEvent<HTMLButtonElement>) => {
+    const dragState = dragRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+
+    const distanceX = Math.abs(event.clientX - dragState.startX);
+    if (!dragState.dragging && distanceX < DRAG_THRESHOLD_PX) return;
+
+    dragState.dragging = true;
+    suppressClickRef.current = true;
+    setDraggingSheetId(dragState.sheetId);
+    event.preventDefault();
+
+    const target = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest("[data-sheet-tab-id]");
+    const targetSheetId = target?.getAttribute("data-sheet-tab-id");
+
+    if (targetSheetId && targetSheetId !== dragState.sheetId) {
+      onReorderSheets(dragState.sheetId, targetSheetId);
+    }
+  };
+
+  const handleSheetPointerEnd = (event: PointerEvent<HTMLButtonElement>) => {
+    const dragState = dragRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+
+    if (dragState.dragging) {
+      onReorderSheetsEnd();
+    }
+
+    dragRef.current = null;
+    setDraggingSheetId(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handleSheetClick = (sheetId: string) => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
+    onChange(sheetId);
+  };
+
   return (
     <div className="mb-5 min-w-0 sm:mb-6">
       <div className="-mx-3 overflow-x-auto overscroll-x-contain px-3 pb-3 sm:-mx-1 sm:px-1">
@@ -38,8 +120,18 @@ export function NavigationTabs({ activeTab, sheets, onChange, onAddSheet }: Navi
             return (
               <button
                 key={sheet.id}
-                onClick={() => onChange(sheet.id)}
-                className={`flex max-w-[14rem] shrink-0 items-center gap-1.5 rounded border px-3 py-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer sm:py-1.5 ${
+                type="button"
+                data-sheet-tab-id={sheet.id}
+                onClick={() => handleSheetClick(sheet.id)}
+                onPointerDown={(event) => handleSheetPointerDown(event, sheet.id)}
+                onPointerMove={handleSheetPointerMove}
+                onPointerUp={handleSheetPointerEnd}
+                onPointerCancel={handleSheetPointerEnd}
+                className={`flex max-w-[14rem] touch-pan-y select-none items-center gap-1.5 rounded border px-3 py-2 text-[11px] font-bold uppercase tracking-wider transition-all sm:py-1.5 ${
+                  draggingSheetId === sheet.id
+                    ? "shrink-0 cursor-grabbing opacity-70 ring-2 ring-slate-300"
+                    : "shrink-0 cursor-grab active:cursor-grabbing"
+                } ${
                   isActive
                     ? "text-white shadow-md shadow-slate-200"
                     : "bg-white hover:bg-slate-50 text-slate-500 border-slate-200"
